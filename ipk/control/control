@@ -1,0 +1,8 @@
+Package: voxl-mpa-tflite-server
+Version: 0.0.1
+Section: base
+Priority: optional
+Architecture: any
+Depends:
+Maintainer: modalai.com
+Description: client of voxl-camera-server that does deep learning (object detection, monocular depth estimation)

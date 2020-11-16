@@ -1,0 +1,10 @@
+#!/bin/sh
+
+################################################################################
+# Copyright (c) 2020 ModalAI, Inc. All rights reserved.
+################################################################################
+
+set -e
+echo ""
+echo "Done installing voxl-mpa-tflite-server"
+echo ""
