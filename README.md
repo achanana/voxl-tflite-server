@@ -16,10 +16,10 @@ Build steps
 1. (PC) Download build-dependencies.tar.gz from [here]
 1. (PC) Save build-dependencies.tar.gz in the "<path-to>/voxl-mpa-tflite-server/modalai" directory
 1. (PC) sudo docker run -v $PWD:/opt/data/workspace/ -it voxl-cross64
-1. (VOXL_EMULATOR) cd /opt/data/workspace
-1. (VOXL_EMULATOR) ./install_build_deps.sh
-1. (VOXL_EMULATOR) ./build_aarch64.sh
-1. (VOXL_EMULATOR) ./make_package.sh
+1. (PC_CROSS64_DOCKER) cd /opt/data/workspace
+1. (PC_CROSS64_DOCKER) ./install_build_deps.sh
+1. (PC_CROSS64_DOCKER) ./build_aarch64.sh
+1. (PC_CROSS64_DOCKER) ./make_package.sh
 
 Steps to run
 ============
