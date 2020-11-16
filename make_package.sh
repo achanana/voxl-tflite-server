@@ -62,7 +62,7 @@ sudo rm -rf $IPK_NAME
 ./build_aarch64.sh
 sudo mkdir -p $DATA_DIR/usr/bin/dnn/data
 sudo cp -r ./dnn/*  $DATA_DIR/usr/bin/dnn/
-sudo cp ./build/voxl-mpa-tflite $DATA_DIR/usr/bin/
+sudo cp ./build/voxl-mpa-tflite-server $DATA_DIR/usr/bin/
 
 ################################################################################
 # pack the control, data, and final ipk archives
