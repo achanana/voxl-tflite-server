@@ -8,7 +8,7 @@ The following picture shows at a glance how the different components interact wi
 
 Build steps
 ===========
-1. (PC) Build the voxl-cross64 docker from [here]
+1. (PC) Get the voxl-cross64 docker from [here]
 1. (PC) mkdir my-git-source-code
 1. (PC) cd my-git-source-code
 1. (PC) git clone XXXXXX

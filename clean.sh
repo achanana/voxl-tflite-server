@@ -57,3 +57,7 @@ sudo rm -rf ./source/CMakeCache.txt
 sudo rm -rf ./source/cmake_install.cmake
 sudo rm -rf ./source/CTestTestfile.cmake
 sudo rm -rf ./source/Makefile
+
+echo ""
+echo "Done cleaning"
+echo ""

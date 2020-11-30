@@ -43,6 +43,8 @@ mkdir /usr/lib64/ 2>/dev/null
 cp -R ./build-dependencies/usr/lib64/* /usr/lib64/ 2>/dev/null
 cp -R ./build-dependencies/usr/share/* /usr/share/ 2>/dev/null
 rm -rf build-dependencies 2>/dev/null
+echo ""
 echo "Done installing build dependencies"
+echo ""
 
 exit 0

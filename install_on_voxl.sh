@@ -48,14 +48,13 @@ elif [ $NUM_FILES -gt "1" ]; then
 	exit 1
 fi
 
-# now we know only one ipk file exists
-FILE=$(ls -1q $PACKAGE*.ipk)
-echo "pushing $FILE to target"
-
 echo "searching for ADB device"
 adb wait-for-device
 echo "adb device found"
 
+# now we know only one ipk file exists
+FILE=$(ls -1q $PACKAGE*.ipk)
+echo "pushing $FILE to target"
 
 adb push $FILE /home/root/ipk/$FILE
 adb shell "opkg remove $PACKAGE"
@@ -64,6 +63,13 @@ adb shell "opkg install --force-reinstall --force-downgrade --force-depends /hom
 
 adb shell "mv /usr/lib64/libstdc++.so.6.0.20 /usr/lib64/libstdc++.so.6.0.20.ORIGINAL 2>/dev/null"
 cd modalai
+if [ ! -f voxl-opencv-430-opencl-enabled-64-bit.ipk ]; then
+    wget http://voxl-packages.modalai.com/dev/voxl-opencv-430-opencl-enabled-64-bit.ipk 2>/dev/null
+fi
 FILE=$(ls -1q voxl-opencv-430*.ipk)
+adb push $FILE /home/root/ipk/$FILE
+adb shell "opkg install --force-reinstall --force-downgrade --force-depends /home/root/ipk/$FILE"
+
+FILE=$(ls -1q voxl-gpulibs*.ipk)
 adb push $FILE /home/root/ipk/$FILE
 adb shell "opkg install --force-reinstall --force-downgrade --force-depends /home/root/ipk/$FILE"
