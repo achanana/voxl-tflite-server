@@ -28,11 +28,11 @@ Steps to run
 1. (PC) cd <path-to>/voxl-mpa-tflite-server/
 1. (PC) ./install_on_voxl.sh
 1. (PC) adb shell
-1. (VOXL) cd /bin/dnn
-1. (VOXL) voxl-mpa-tflite -m pydnet
+1. (VOXL) cd /usr/bin/dnn
+1. (VOXL) voxl-mpa-tflite-server -m pydnet
     - Check the outputs in the /bin/dnn directories
 1. (PC) Install the voxl-camera-server IPK on VOXL from [here]
 1. (VOXL-Terminal-1) voxl-camera-server -c /etc/modalai/voxl-camera-server.conf
-1. (VOXL-Terminal-2) voxl-mpa-tflite -m mobilenet
+1. (VOXL-Terminal-2) voxl-mpa-tflite-server -m mobilenet
     - Ctrl+C Terminal-1
     - Ctrl+C Terminal-2
