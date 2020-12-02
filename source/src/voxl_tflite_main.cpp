@@ -248,11 +248,11 @@ int main(int argc, char **argv)
 
         VOXL_LOG_INFO("\n------ Hello Tensorflow-Lite-Gpu!\n\n");
 
-        TFLiteObjectDetect* pTFLiteObjectDetect = TFLiteObjectDetect::Create(&initData);
+        TFliteModelExecute* pTFliteModelExecute = TFliteModelExecute::Create(&initData);
 
-        if (pTFLiteObjectDetect != NULL)
+        if (pTFliteModelExecute != NULL)
         {
-            pTFLiteObjectDetect->Run();
+            pTFliteModelExecute->Run();
 
             // The apps keeps running till Ctrl+C is pressed to terminate the program
             while (g_keepRunning)
@@ -262,7 +262,7 @@ int main(int argc, char **argv)
             }
 
             VOXL_LOG_INFO("\n------ Stopping the application");
-            pTFLiteObjectDetect->Destroy();
+            pTFliteModelExecute->Destroy();
 
             if (pTcpServer != NULL)
             {

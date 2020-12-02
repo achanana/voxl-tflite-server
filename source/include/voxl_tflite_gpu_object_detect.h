@@ -56,10 +56,10 @@ struct TFLiteInitData
 //------------------------------------------------------------------------------------------------------------------------------
 // Tensorflow Lite Gpu Object Detect class
 //------------------------------------------------------------------------------------------------------------------------------
-class TFLiteObjectDetect
+class TFliteModelExecute
 {
 public:
-    static TFLiteObjectDetect* Create(TFLiteInitData* pInitData);
+    static TFliteModelExecute* Create(TFLiteInitData* pInitData);
     void Run();
     void Destroy();
 
@@ -68,8 +68,8 @@ public:
 
 private:
     // Prevent direct instantiations and instead call Create and Destroy
-    TFLiteObjectDetect()  { }
-    ~TFLiteObjectDetect() { }
+    TFliteModelExecute()  { }
+    ~TFliteModelExecute() { }
     void Cleanup();
 
     Status Initialize(TFLiteInitData* pInitData);

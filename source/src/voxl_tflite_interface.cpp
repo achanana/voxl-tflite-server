@@ -282,7 +282,7 @@ void SendImageData(void* pData)
 // -----------------------------------------------------------------------------------------------------------------------------
 // This function runs the object detection model on every live camera frame
 // -----------------------------------------------------------------------------------------------------------------------------
-void TfliteObjectDetect(void* pData)
+void TFliteMobileNet(void* pData)
 {
     int modelImageHeight;
     int modelImageWidth;
@@ -365,7 +365,7 @@ void TfliteObjectDetect(void* pData)
     interpreter->UseNNAPI(s->old_accel);
     interpreter->SetAllowFp16PrecisionForFp32(s->allow_fp16);
 
-    // if (s->verbose)
+    if (s->verbose)
     {
         LOG(INFO) << "tensors size: " << interpreter->tensors_size() << "\n";
         LOG(INFO) << "nodes size: " << interpreter->nodes_size() << "\n";
@@ -463,8 +463,8 @@ void TfliteObjectDetect(void* pData)
         camera_image_metadata_t* pImageMetadata = pTFLiteMessage->pMetadata;
         uint8_t*                 pImagePixels   = pTFLiteMessage->pImagePixels;
 
-        int imageWidth    = pImageMetadata->width_pixels;
-        int imageHeight   = pImageMetadata->height_pixels;
+        int imageWidth    = pImageMetadata->width;
+        int imageHeight   = pImageMetadata->height;
         int imageChannels = 3;
         int frameNumber   = pImageMetadata->frame_id;
 
@@ -607,14 +607,6 @@ void TfliteObjectDetect(void* pData)
         // Stream the RGB image over the tcp socket
         if (pTcpServer == NULL)
         {
-            // g_sendExtMsg[g_sendExtMessageIdx].pImagePixels = (uint8_t*)pRgbImage[g_sendTcpInsertdx]->data;
-            // g_sendExtMsg[g_sendExtMessageIdx].pMetadata    = pImageMetadata;
-
-            // g_sendExtMessageIdx = ((g_sendExtMessageIdx + 1) % MAX_EXT_MESSAGES);
-            // g_condVar.notify_all();
-
-            ///<@todo Handle different format types
-            pImageMetadata->bits_per_pixel = 24;
             pImageMetadata->size_bytes     = (imageWidth * imageHeight * 3);
             pImageMetadata->stride         = (imageWidth * 3);
 
@@ -622,40 +614,7 @@ void TfliteObjectDetect(void* pData)
             pExternalInterface->BroadcastFrame(OUTPUT_ID_RGB_IMAGE,
                                                (char*)pRgbImage[g_sendTcpInsertdx]->data,
                                                pImageMetadata->size_bytes);
-
-            // if (frameNumber % 5 == 0)
-            // {
-            //     g_sendTcpData[g_sendTcpInsertdx].pRgbData       = pRgbImage[g_sendTcpInsertdx]->data;
-            //     g_sendTcpData[g_sendTcpInsertdx].width          = imageWidth;
-            //     g_sendTcpData[g_sendTcpInsertdx].height         = imageHeight;
-            //     g_sendTcpData[g_sendTcpInsertdx].frameNumber    = frameNumber;
-            //     g_sendTcpData[g_sendTcpInsertdx].timestampNsecs = 0; ///<@todo fix this if need be
-
-            //     g_sendTcpInsertdx = (g_sendTcpInsertdx + 1) % MAX_SENDTCP;
-            //     g_condVar.notify_all();
-            // }
-
-            // uint8_t opts[4] = {0, 0, 0, 0};
-            // uint64_t timestampNsecs = 0; // (stop_time.tv_sec*1e9) + (stop_time.tv_usec*1e3);
-            // // cv::Mat gray(imageHeight, imageWidth, CV_8UC1);
-
-            // // cv::cvtColor(rgbImage, gray, CV_BGR2GRAY);
-
-            // pTcpServer->send_message(rgbImage.data,
-            //                          imageWidth*imageHeight*3,
-            //                          2,
-            //                          imageWidth,
-            //                          imageHeight,
-            //                          &opts[0],
-            //                          frameNumber,
-            //                          timestampNsecs);
         }
-        // else
-        // {
-        //     char filename[128];
-        //     sprintf(filename, "/data/misc/camera/frame_%d.bmp", frameNumber);
-        //     cv::imwrite(filename, rgbImage);
-        // }
 
         queueProcessIdx = ((queueProcessIdx + 1) % MAX_MESSAGES);
     }
@@ -892,7 +851,7 @@ void* ThreadTflitePydnet(void* pData)
 // -----------------------------------------------------------------------------------------------------------------------------
 void* ThreadMobileNet(void* pData)
 {
-    tflite::label_image::TfliteObjectDetect(pData);
+    tflite::label_image::TFliteMobileNet(pData);
     return NULL;
 }
 

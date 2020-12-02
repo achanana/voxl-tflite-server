@@ -39,6 +39,7 @@
 #include <sys/types.h>  // NOLINT(build/include_order)
 #include <sys/resource.h>
 #include <sys/syscall.h>
+#include <string.h>
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
@@ -60,7 +61,7 @@ extern char* PydnetModel;
 extern char* MobileNetModel;
 
 // Global variables to this file only
-static TFLiteObjectDetect* g_pTFLiteObjectDetect = NULL;
+static TFliteModelExecute* g_pTFliteModelExecute = NULL;
 
 // Global function prototypes
 void PipeImageDataCb(camera_image_metadata_t* pImageMetadata, uint8_t* pImagePixels);
@@ -70,13 +71,13 @@ void PipeImageDataCb(camera_image_metadata_t* pImageMetadata, uint8_t* pImagePix
 //------------------------------------------------------------------------------------------------------------------------------
 void PipeImageDataCb(camera_image_metadata_t* pImageMetadata, uint8_t* pImagePixels)
 {
-    g_pTFLiteObjectDetect->PipeImageData(pImageMetadata, pImagePixels);
+    g_pTFliteModelExecute->PipeImageData(pImageMetadata, pImagePixels);
 }
 
 //------------------------------------------------------------------------------------------------------------------------------
 // Perform any necessary clean up actions before the object gets destroyed
 //------------------------------------------------------------------------------------------------------------------------------
-void TFLiteObjectDetect::Cleanup()
+void TFliteModelExecute::Cleanup()
 {
     if (m_pInputPipeInterface != NULL)
     {
@@ -88,7 +89,7 @@ void TFLiteObjectDetect::Cleanup()
 //------------------------------------------------------------------------------------------------------------------------------
 // Destructor
 //------------------------------------------------------------------------------------------------------------------------------
-void TFLiteObjectDetect::Destroy()
+void TFliteModelExecute::Destroy()
 {
     m_tfliteThreadData.stop        = true;
     m_tfliteThreadData.tfliteReady = false;
@@ -109,7 +110,7 @@ void TFLiteObjectDetect::Destroy()
 //------------------------------------------------------------------------------------------------------------------------------
 // Process the image data
 //------------------------------------------------------------------------------------------------------------------------------
-void TFLiteObjectDetect::PipeImageData(camera_image_metadata_t* pImageMetadata, uint8_t* pImagePixels)
+void TFliteModelExecute::PipeImageData(camera_image_metadata_t* pImageMetadata, uint8_t* pImagePixels)
 {
     if (m_tfliteThreadData.tfliteReady == true)
     {
@@ -123,7 +124,7 @@ void TFLiteObjectDetect::PipeImageData(camera_image_metadata_t* pImageMetadata, 
         int queueInsertIdx = m_tfliteMsgQueue.queueInsertIdx;
 
         fprintf(stderr, "\n------voxl-mpa-tflite-gpu INFO: Received hires frame-%d: %d %d ... Index: %d",
-                pImageMetadata->frame_id, pImageMetadata->width_pixels, pImageMetadata->height_pixels, queueInsertIdx);
+                pImageMetadata->frame_id, pImageMetadata->width, pImageMetadata->height, queueInsertIdx);
 
         TFLiteMessage* pTFLiteMessage = &m_tfliteMsgQueue.queue[queueInsertIdx];
 
@@ -149,7 +150,7 @@ void TFLiteObjectDetect::PipeImageData(camera_image_metadata_t* pImageMetadata, 
 //------------------------------------------------------------------------------------------------------------------------------
 // Anything to do prior to running
 //------------------------------------------------------------------------------------------------------------------------------
-void TFLiteObjectDetect::Run()
+void TFliteModelExecute::Run()
 {
 }
 
@@ -157,27 +158,27 @@ void TFLiteObjectDetect::Run()
 // Create an instance of the class, initialize and return the object instance. If there are any problems during initialization
 // will be result in the object not being instantiated
 //------------------------------------------------------------------------------------------------------------------------------
-TFLiteObjectDetect* TFLiteObjectDetect::Create(TFLiteInitData* pInitData)
+TFliteModelExecute* TFliteModelExecute::Create(TFLiteInitData* pInitData)
 {
-    g_pTFLiteObjectDetect = new TFLiteObjectDetect;
+    g_pTFliteModelExecute = new TFliteModelExecute;
 
-    if (g_pTFLiteObjectDetect != NULL)
+    if (g_pTFliteModelExecute != NULL)
     {
-        if (g_pTFLiteObjectDetect->Initialize(pInitData) != S_OK)
+        if (g_pTFliteModelExecute->Initialize(pInitData) != S_OK)
         {
             VOXL_LOG_FATAL("\n------voxl-mpa-tflite-gpu: Failed to initialize");
-            g_pTFLiteObjectDetect->Destroy();
-            g_pTFLiteObjectDetect = NULL;
+            g_pTFliteModelExecute->Destroy();
+            g_pTFliteModelExecute = NULL;
         }
     }
 
-    return g_pTFLiteObjectDetect;
+    return g_pTFliteModelExecute;
 }
 
 //------------------------------------------------------------------------------------------------------------------------------
 // Initialize the object instance. Return S_ERROR on any errors.
 //------------------------------------------------------------------------------------------------------------------------------
-Status TFLiteObjectDetect::Initialize(TFLiteInitData* pInitData)
+Status TFliteModelExecute::Initialize(TFLiteInitData* pInitData)
 {
     Status             status       = S_OK;
     InputInterfaceData inputData    = { 0 };
