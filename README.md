@@ -6,6 +6,8 @@ High Level Overview
 ===================
 The following picture shows at a glance how the different components interact with each other.
 
+![](images/voxl-mpa-tflite-server.png)
+
 Build steps
 ===========
 1. (PC) Get the voxl-cross64 docker from [here]
