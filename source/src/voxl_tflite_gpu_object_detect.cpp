@@ -38,6 +38,7 @@
 #include <sys/time.h>   // NOLINT(build/include_order)
 #include <sys/types.h>  // NOLINT(build/include_order)
 #include <sys/resource.h>
+#include <string.h>
 #include <sys/syscall.h>
 #include <string.h>
 #include <cstdarg>

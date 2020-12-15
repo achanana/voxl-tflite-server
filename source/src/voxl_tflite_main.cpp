@@ -153,7 +153,7 @@ int ParseArgs(int         argc,
                     strcpy(pDnnModelFile, MobileNetModel);
                 }
 
-                fprintf(stderr, "------Slected model: %s", pDnnModelFile);
+                fprintf(stderr, "------Selected model: %s", pDnnModelFile);
 
                 break;
 
@@ -258,7 +258,8 @@ int main(int argc, char **argv)
             while (g_keepRunning)
             {
                 std::unique_lock<std::mutex> lock(g_exitCondMutex);
-                g_exitCondVar.wait(lock);
+                // g_exitCondVar.wait(lock);
+                sleep(5); // yoyoma
             }
 
             VOXL_LOG_INFO("\n------ Stopping the application");

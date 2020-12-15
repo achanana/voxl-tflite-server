@@ -36,8 +36,9 @@
 # Copyright (c) 2020 ModalAI, Inc. All rights reserved.
 ################################################################################
 
+# yoyoma
 cd modalai
-tar xvf build-dependencies.tar.gz > /dev/null
+tar xvf voxl-mpa-tflite-build-deps.tar.gz > /dev/null
 cp -R ./build-dependencies/usr/include/* /usr/include/ 2>/dev/null
 mkdir /usr/lib64/ 2>/dev/null
 cp -R ./build-dependencies/usr/lib64/* /usr/lib64/ 2>/dev/null

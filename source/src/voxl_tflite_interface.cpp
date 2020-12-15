@@ -28,6 +28,9 @@ Modified by ModalAI to run the object detection model on live camera frames
 #include <fstream>
 #include <iostream>
 #include <vector>
+#include <sys/stat.h>	// for mkfifo() // yoyoma
+#include <sys/types.h>	// for mkfifo()
+#include <fcntl.h>		// for O_WRONLY & O_RDONLY
 
 #include "debug_log.h"
 #include "external_interface.h"
@@ -298,6 +301,18 @@ void TFliteMobileNet(void* pData)
     TcpServer* pTcpServer                    = pThreadData->pTcpServer;
     ExternalInterface* pExternalInterface    = NULL;
 
+    // yoyoma
+    mkdir("/run/tflite_server/", S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+    mkfifo("/run/tflite_server/frames", 0666);
+    int frameFifoFD = open("/run/tflite_server/frames", O_RDWR);
+
+    if (frameFifoFD == -1)
+    {
+        fprintf(stderr, "\n------voxl-mpa-tflite-server: Failed creating pipe /run/tflite_server/frames/");
+        return;
+    }
+    // yoyoma
+
     ExternalInterfaceData initData;
 
     if (pTcpServer != NULL)
@@ -311,11 +326,14 @@ void TFliteMobileNet(void* pData)
     {
         pRgbImage[0] = new cv::Mat();
 
-        memset(&initData, 0, sizeof(ExternalInterfaceData));
-        ///<@todo get this from the thread data
-        initData.outputMask = RgbOutputMask;
+        if (frameFifoFD == -1)
+        {
+            memset(&initData, 0, sizeof(ExternalInterfaceData));
+            ///<@todo get this from the thread data
+            initData.outputMask = RgbOutputMask;
 
-        pExternalInterface = ExternalInterface::Create(&initData);
+            pExternalInterface = ExternalInterface::Create(&initData);
+        }
     }
 
     s = new tflite::label_image::Settings;
@@ -604,9 +622,15 @@ void TFliteMobileNet(void* pData)
 
         LOG(INFO) << "\n\n";
 
-        // Stream the RGB image over the tcp socket
-        if (pTcpServer == NULL)
+        // yoyoma
+        if (frameFifoFD != -1)
         {
+            write(frameFifoFD, (char*)pRgbImage[g_sendTcpInsertdx]->data, (size_t)(imageWidth * imageHeight * 3));
+        }
+        // Stream the RGB image over the tcp socket
+        else if (pTcpServer == NULL)
+        {
+            pImageMetadata->format         = 7; ///<@todo Fix this to the correct format
             pImageMetadata->size_bytes     = (imageWidth * imageHeight * 3);
             pImageMetadata->stride         = (imageWidth * 3);
 
@@ -641,6 +665,12 @@ void TFliteMobileNet(void* pData)
             delete pRgbImage[0];
             pRgbImage[0] = NULL;
         }
+    }
+
+    // yoyoma
+    if (frameFifoFD != -1)
+    {
+        close(frameFifoFD);
     }
 }
 

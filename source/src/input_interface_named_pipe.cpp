@@ -125,6 +125,7 @@ Status CameraNamedPipe::Initialize(InputInterfaceData* pInputIntfData)
     if (status == S_OK)
     {
         g_pCameraNamedPipe = this;
+        m_threadData.readerThreadStop = 0;
 
         m_pReaderThread = new std::thread(ProcessCameraServerData, &m_threadData);
     }
