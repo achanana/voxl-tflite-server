@@ -15,26 +15,41 @@ Build steps
 1. (PC) cd my-git-source-code
 1. (PC) git clone XXXXXX
 1. (PC) cd <path-to>/voxl-mpa-tflite-server/
-1. (PC) Download build-dependencies.tar.gz from [here]
-1. (PC) Save build-dependencies.tar.gz in the "<path-to>/voxl-mpa-tflite-server/modalai" directory
-1. (PC) sudo docker run -v $PWD:/opt/data/workspace/ -it voxl-cross64
+1. (PC) sudo docker run -v $PWD:/opt/data/workspace/ --net=host --privileged=true -it voxl-cross64
 1. (PC_CROSS64_DOCKER) cd /opt/data/workspace
 1. (PC_CROSS64_DOCKER) ./install_build_deps.sh
+1. (PC_CROSS64_DOCKER) ./clean.sh
 1. (PC_CROSS64_DOCKER) ./build_aarch64.sh
 1. (PC_CROSS64_DOCKER) ./make_package.sh
 
 Steps to run
 ============
-1. (PC) Download 64-bit opencv-4-3-0 and gpu-libs IPK from [here]
-1. (PC) Save downloaded IPK file in the "<path-to>/voxl-mpa-tflite/modalai" directory
 1. (PC) cd <path-to>/voxl-mpa-tflite-server/
 1. (PC) ./install_on_voxl.sh
 1. (PC) adb shell
-1. (VOXL) cd /usr/bin/dnn
+1. (VOXL-Terminal-1) export ROS_IP=IP-ADDRESS-OF-VOXL
+1. (VOXL-Terminal-1) roscore
+    * It should print a line that looks something like: ROS_MASTER_URI=http://AAA.BBB.CCC.DDD:XYZW/
+1. (PC) source /opt/ros/kinetic/setup.bash
+1. (PC) export ROS_IP=IP-ADDRESS-OF-PC
+1. (PC) source /opt/ros/xxxx/setup.bash
+1. (PC) export ROS_MASTER_URI=http://AAA.BBB.CCC.DDD:XYZW/
+1. (PC) rviz
+    - Click on "Add" at the bottom-left
+    - Select "Image"
+    - Change Display Name to "My-Camera-Image"
+    - On the left column expand the "My-Camera-Image"
+    - Click on the "Image Topic" and in the right column enter "/voxl_hires_image" 
+1. (PC) adb shell
+1. (VOXL-Terminal-2) voxl-camera-server -c /etc/modalai/voxl-camera-server.conf
+1. (PC) adb shell
+1. (VOXL-Terminal-3) voxl-mpa-tflite-server -m mobilenet
+1. (PC) adb shell
+1. (VOXL-Terminal-4) vi /opt/ros/indigo/share/voxl_mpa_cam_ros/launch/voxl_mpa_cam_ros.launch
+    * Change line 15 to the new pipe name "default="/run/mpa/tflite/image/"    
+1. (VOXL-Terminal-4) python /usr/bin/launch_voxl_mpa_cam_ros.py
+
+
+
 1. (VOXL) voxl-mpa-tflite-server -m pydnet
-    - Check the outputs in the /bin/dnn directories
-1. (PC) Install the voxl-camera-server IPK on VOXL from [here]
-1. (VOXL-Terminal-1) voxl-camera-server -c /etc/modalai/voxl-camera-server.conf
-1. (VOXL-Terminal-2) voxl-mpa-tflite-server -m mobilenet
-    - Ctrl+C Terminal-1
-    - Ctrl+C Terminal-2
+    * Check the outputs in the /usr/bin/dnn/data directory

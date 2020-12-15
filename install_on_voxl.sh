@@ -63,13 +63,35 @@ adb shell "opkg install --force-reinstall --force-downgrade --force-depends /hom
 
 adb shell "mv /usr/lib64/libstdc++.so.6.0.20 /usr/lib64/libstdc++.so.6.0.20.ORIGINAL 2>/dev/null"
 cd modalai
-if [ ! -f voxl-opencv-430-opencl-enabled-64-bit.ipk ]; then
-    wget http://voxl-packages.modalai.com/dev/voxl-opencv-430-opencl-enabled-64-bit.ipk 2>/dev/null
-fi
-FILE=$(ls -1q voxl-opencv-430*.ipk)
+rm -rf temporary 2>/dev/null
+mkdir temporary
+chmod 777 temporary
+cd temporary
+mkdir temp
+cd temp
+
+echo "Installing libmodal_json"
+FILE=libmodal_json_0.3.0_202012090513.ipk
+wget http://voxl-packages.modalai.com/dev/$FILE 2>/dev/null
 adb push $FILE /home/root/ipk/$FILE
 adb shell "opkg install --force-reinstall --force-downgrade --force-depends /home/root/ipk/$FILE"
 
-FILE=$(ls -1q voxl-gpulibs*.ipk)
+echo "Installing libmodal_pipe"
+FILE=libmodal_pipe_1.5.4_202012141742.ipk
+wget http://voxl-packages.modalai.com/dev/$FILE 2>/dev/null
 adb push $FILE /home/root/ipk/$FILE
 adb shell "opkg install --force-reinstall --force-downgrade --force-depends /home/root/ipk/$FILE"
+
+echo "Installing opencv_4.3.0"
+FILE=opencv_4.3.0.ipk
+wget http://voxl-packages.modalai.com/dev/$FILE 2>/dev/null
+adb push $FILE /home/root/ipk/$FILE
+adb shell "opkg install --force-reinstall --force-downgrade --force-depends /home/root/ipk/$FILE"
+
+echo "Installing voxl-gpulibs"
+FILE=voxl-gpulibs-64bit.ipk
+cp ../../$FILE .
+adb push $FILE /home/root/ipk/$FILE
+adb shell "opkg install --force-reinstall --force-downgrade --force-depends /home/root/ipk/$FILE"
+
+adb shell "mv /usr/lib64/libstdc++.so.6.0.22 /usr/lib64/libstdc++.so.6.0.20 2>/dev/null"

@@ -45,37 +45,39 @@ DATA_DIR=ipk/data
 CONTROL_DIR=ipk/control
 
 echo ""
-echo "Package Name: " $PACKAGE
-echo "version Number: " $VERSION
+echo "Package Name   : " $PACKAGE
+echo "version Number : " $VERSION
+echo "IPK Name       : " $IPK_NAME
 
 ################################################################################
 # start with a little cleanup to remove old files
 ################################################################################
-sudo rm -rf ipk/control.tar.gz
-sudo rm -rf $DATA_DIR/
-sudo rm -rf ipk/data.tar.gz
-sudo rm -rf $IPK_NAME
+sudo rm -rf ipk/control.tar.gz 2>/dev/null
+sudo rm -rf $DATA_DIR/ 2>/dev/null
+sudo rm -rf ipk/data.tar.gz 2>/dev/null
+sudo rm -rf $IPK_NAME 2>/dev/null
 
 ################################################################################
 ## copy useful files into data directory
 ################################################################################
-./build_aarch64.sh
-sudo mkdir -p $DATA_DIR/usr/bin/dnn/data
-sudo cp -r ./dnn/*  $DATA_DIR/usr/bin/dnn/
-sudo cp ./build/voxl-mpa-tflite-server $DATA_DIR/usr/bin/
+#./build_aarch64.sh
+sudo mkdir -p $DATA_DIR/usr/bin/dnn/data 2>/dev/null
+sudo cp -r ./dnn/*  $DATA_DIR/usr/bin/dnn/ 2>/dev/null
+sudo cp ./build/voxl-mpa-tflite-server $DATA_DIR/usr/bin/ 2>/dev/null
 
 ################################################################################
 # pack the control, data, and final ipk archives
 ################################################################################
 
 cd $CONTROL_DIR/
-tar --create --gzip -f ../control.tar.gz *
-cd ../../
+tar --create --gzip -f ../control.tar.gz * 2>/dev/null
+cd ../../ 2>/dev/null
 
 cd $DATA_DIR/
-tar --create --gzip -f ../data.tar.gz *
-cd ../../
+tar --create --gzip -f ../data.tar.gz * 2>/dev/null
+cd ../../ 2>/dev/null
 
-ar -r $IPK_NAME ipk/control.tar.gz ipk/data.tar.gz ipk/debian-binary
+ar -r $IPK_NAME ipk/control.tar.gz ipk/data.tar.gz ipk/debian-binary 2>/dev/null
 echo ""
 echo DONE
+echo ""

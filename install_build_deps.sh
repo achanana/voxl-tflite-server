@@ -32,20 +32,67 @@
 ################################################################################
 
 #!/bin/bash
-################################################################################
-# Copyright (c) 2020 ModalAI, Inc. All rights reserved.
-################################################################################
 
-# yoyoma
-cd modalai
-tar xvf voxl-mpa-tflite-build-deps.tar.gz > /dev/null
-cp -R ./build-dependencies/usr/include/* /usr/include/ 2>/dev/null
+echo ""
 mkdir /usr/lib64/ 2>/dev/null
-cp -R ./build-dependencies/usr/lib64/* /usr/lib64/ 2>/dev/null
-cp -R ./build-dependencies/usr/share/* /usr/share/ 2>/dev/null
-rm -rf build-dependencies 2>/dev/null
-echo ""
-echo "Done installing build dependencies"
-echo ""
 
+cd modalai
+rm -rf temporary 2>/dev/null
+mkdir temporary
+chmod 777 temporary
+cd temporary
+mkdir temp
+cd temp
+echo "Installing voxl-camera-server"
+FILE=voxl-camera-server_0.2.7_202012150040.ipk
+wget http://voxl-packages.modalai.com/dev/$FILE 2>/dev/null
+ar xvf $FILE > /dev/null
+tar xvf data.tar.gz > /dev/null
+cp -R usr/include/* /usr/include/ > /dev/null
+rm -rf * > /dev/null
+
+echo "Installing libmodal_pipe"
+FILE=libmodal_pipe_1.5.4_202012141742.ipk
+wget http://voxl-packages.modalai.com/dev/$FILE 2>/dev/null
+ar xvf $FILE > /dev/null
+tar xvf data.tar.gz > /dev/null
+cp -R usr/include/* /usr/include/ > /dev/null
+cp -R usr/lib64/* /usr/lib64/ > /dev/null
+rm -rf * 2>/dev/null
+
+echo "Installing opencv_4.3.0"
+FILE=opencv_4.3.0.ipk
+wget http://voxl-packages.modalai.com/dev/$FILE 2>/dev/null
+ar xvf $FILE > /dev/null
+tar xvf data.tar.gz > /dev/null
+cp -R usr/include/* /usr/include/ > /dev/null
+cp -R usr/lib64/* /usr/lib64/ > /dev/null
+rm -rf * > /dev/null
+
+echo "Installing voxl_tflite_2_2_x"
+FILE=voxl_tflite_2_2_x.ipk
+cp ../../$FILE . > /dev/null
+ar xvf $FILE > /dev/null
+tar xvf data.tar.gz > /dev/null
+cp -R usr/include/* /usr/include/ > /dev/null
+cp -R usr/lib64/* /usr/lib64/ > /dev/null
+rm -rf * > /dev/null
+
+echo "Installing voxl-gpulibs"
+FILE=voxl-gpulibs-64bit.ipk
+cp ../../$FILE . > /dev/null
+ar xvf $FILE > /dev/null
+tar xvf data.tar.gz > /dev/null
+mkdir -p /usr/include/CL/ > /dev/null
+cp -R usr/CL/* /usr/include/CL/ > /dev/null
+cp -R usr/lib64/* /usr/lib64/ > /dev/null
+rm -rf * > /dev/null
+
+cd .. 2>/dev/null
+cd .. 2>/dev/null
+rm -rf temporary 2>/dev/null
+
+echo ""
+echo "Done installing dependencies"
+echo ""
 exit 0

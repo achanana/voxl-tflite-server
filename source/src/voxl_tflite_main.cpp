@@ -221,7 +221,7 @@ int main(int argc, char **argv)
     }
     else
     {
-        ipAddress[0] = '0'; ///<@todo Remove this
+        ipAddress[0] = '0'; ///<@todo Remove the tcp option
 
         initData.numFramesDump = numFramesDump;
         initData.pDnnModelFile = &dnnModelFile[0];
@@ -259,7 +259,8 @@ int main(int argc, char **argv)
             {
                 std::unique_lock<std::mutex> lock(g_exitCondMutex);
                 // g_exitCondVar.wait(lock);
-                sleep(5); // yoyoma
+                ///<@todo Enable convition variable
+                sleep(2);
             }
 
             VOXL_LOG_INFO("\n------ Stopping the application");
