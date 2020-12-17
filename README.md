@@ -10,17 +10,18 @@ The following picture shows at a glance how the different components interact wi
 
 Build steps
 ===========
-1. (PC) Get the voxl-cross64 docker from [here]
+1. (PC) Build the voxl-cross docker from [here](https://gitlab.com/voxl-public/utilities/voxl-docker)
+    * ./install-cross-docker.sh
 1. (PC) mkdir my-git-source-code
 1. (PC) cd my-git-source-code
-1. (PC) git clone XXXXXX
+1. (PC) git clone git@gitlab.com:voxl-public/modal-pipe-architecture/voxl-mpa-tflite-server.git
 1. (PC) cd <path-to>/voxl-mpa-tflite-server/
-1. (PC) sudo docker run -v $PWD:/opt/data/workspace/ --net=host --privileged=true -it voxl-cross64
-1. (PC_CROSS64_DOCKER) cd /opt/data/workspace
-1. (PC_CROSS64_DOCKER) ./install_build_deps.sh
-1. (PC_CROSS64_DOCKER) ./clean.sh
-1. (PC_CROSS64_DOCKER) ./build_aarch64.sh
-1. (PC_CROSS64_DOCKER) ./make_package.sh
+1. (PC) sudo docker run -v $PWD:/opt/data/workspace/ --net=host --privileged=true -it voxl-cross
+1. (PC_CROSS_DOCKER) cd /opt/data/workspace
+1. (PC_CROSS_DOCKER) ./install_build_deps.sh
+1. (PC_CROSS_DOCKER) ./clean.sh
+1. (PC_CROSS_DOCKER) ./build_aarch64.sh
+1. (PC_CROSS_DOCKER) ./make_package.sh
 
 Steps to run
 ============
@@ -28,6 +29,7 @@ Steps to run
 1. (PC) ./install_on_voxl.sh
 1. (PC) adb shell
 1. (VOXL-Terminal-1) export ROS_IP=IP-ADDRESS-OF-VOXL
+1. (VOXL-Terminal-1) source /opt/ros/indigo/setup.bash
 1. (VOXL-Terminal-1) roscore
     * It should print a line that looks something like: ROS_MASTER_URI=http://AAA.BBB.CCC.DDD:XYZW/
 1. (PC) source /opt/ros/kinetic/setup.bash
@@ -45,11 +47,11 @@ Steps to run
 1. (PC) adb shell
 1. (VOXL-Terminal-3) voxl-mpa-tflite-server -m mobilenet
 1. (PC) adb shell
+1. (PC) source /opt/ros/indigo/setup.bash
 1. (VOXL-Terminal-4) vi /opt/ros/indigo/share/voxl_mpa_cam_ros/launch/voxl_mpa_cam_ros.launch
     * Change line 15 to the new pipe name "default="/run/mpa/tflite/image/"    
 1. (VOXL-Terminal-4) python /usr/bin/launch_voxl_mpa_cam_ros.py
-
-
-
-1. (VOXL) voxl-mpa-tflite-server -m pydnet
-    * Check the outputs in the /usr/bin/dnn/data directory
+1. In order to run the pydnet model
+    * (VOXL) voxl-mpa-tflite-server -m pydnet
+    * (VOXL) Check the outputs in the /usr/bin/dnn/data directory
+    * (VOXL) The output files are the ones that have "-depth" in the filename
