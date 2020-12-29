@@ -59,7 +59,7 @@ private:
 
     // Do any one time initialization in this function
     virtual Status Initialize(ExternalInterfaceData* pExtIntfData);
-    static  void   RequestPipeHandler(int channel, char* pClientName, int bytes, int clientid);
+    static  void   RequestPipeHandler(int channel, char* pClientName, int bytes, int clientid, void* pContext);
     void           HandleClientRequest(int channel, char* pClientName, int bytes, int clientid);
 
     // Disable the control pipe

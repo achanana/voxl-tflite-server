@@ -81,7 +81,7 @@ void NamedPipe::Destroy()
 //------------------------------------------------------------------------------------------------------------------------------
 // libmodal_pipe calls into this callback when a client subscribes to the channel
 //------------------------------------------------------------------------------------------------------------------------------
-void NamedPipe::RequestPipeHandler(int channel, char* pClientName, int bytes, int clientid)
+void NamedPipe::RequestPipeHandler(int channel, char* pClientName, int bytes, int clientid, void* pContext)
 {
     if (m_spNamedPipe != NULL)
     {
@@ -130,7 +130,7 @@ Status NamedPipe::Initialize(ExternalInterfaceData* pExtIntfData)   ///< Data pr
                                           m_pChannelPipeNames[OUTPUT_ID_RGB_IMAGE],
                                           ControlPipeDisabled))
         {
-            pipe_server_set_request_cb(OUTPUT_ID_RGB_IMAGE, RequestPipeHandler);
+            pipe_server_set_request_cb(OUTPUT_ID_RGB_IMAGE, RequestPipeHandler, NULL);
         }
         else
         {
