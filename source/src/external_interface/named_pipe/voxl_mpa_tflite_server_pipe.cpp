@@ -130,6 +130,7 @@ Status NamedPipe::Initialize(ExternalInterfaceData* pExtIntfData)   ///< Data pr
                                           m_pChannelPipeNames[OUTPUT_ID_RGB_IMAGE],
                                           ControlPipeDisabled))
         {
+            pipe_server_set_default_pipe_size(OUTPUT_ID_RGB_IMAGE, 16*1024*1024);
             pipe_server_set_request_cb(OUTPUT_ID_RGB_IMAGE, RequestPipeHandler, NULL);
         }
         else
