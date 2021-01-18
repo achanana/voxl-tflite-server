@@ -8,13 +8,13 @@ include:
     file: '/pipeline-configs/.deploy-stable.yml'
 
 stages:
-  - build_stage
-  - deploy_stage_dev
-  - deploy_stage_stable
+  - test_stage
 
-build:
+test:
   image: voxl-cross
-  stage: build_stage
+  stage: test_stage
+  only:
+    - schedules
   script:
     - /bin/bash install_build_deps.sh
     - /bin/bash build_aarch64.sh
