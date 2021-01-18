@@ -16,7 +16,6 @@ build:
   image: voxl-cross
   stage: build_stage
   script:
-    - cd /opt/data/workspace
     - /bin/bash install_build_deps.sh
     - /bin/bash build_aarch64.sh
     - /bin/bash make_package.sh
