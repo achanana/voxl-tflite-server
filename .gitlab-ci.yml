@@ -7,9 +7,6 @@ include:
   - project: 'voxl-public/utilities/ci-tools'
     file: '/pipeline-configs/.deploy-stable.yml'
 
-variables:
-  GIT_SUBMODULE_STRATEGY: recursive
-
 stages:
   - build_stage
   - deploy_stage_dev
