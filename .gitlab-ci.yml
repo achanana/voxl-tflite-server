@@ -1,6 +1,7 @@
 before_script:
-  - git clone -q --depth 1 https://gitlab.com/voxl-public/utilities/ci-tools/-/tree/build-testing
-
+  - git clone -q --depth 1 https://gitlab.com/voxl-public/utilities/ci-tools/
+  - cd ci-tools
+  
 include:
   - project: 'voxl-public/utilities/ci-tools/-/tree/build-testing'
     file: '/pipeline-configs/.deploy-dev.yml'
