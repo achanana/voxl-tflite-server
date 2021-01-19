@@ -11,9 +11,9 @@ include:
   - project: 'voxl-public/utilities/ci-tools/'
     file: '/pipeline-configs/.test-voxl-cross.yml'
 
-stages:
-  - test_stage
+#stages:
+#  - test_stage
 
-only:
-  - schedules
+#only:
+#  - schedules
  
