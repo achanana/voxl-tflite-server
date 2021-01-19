@@ -1,5 +1,6 @@
 before_script:
-- git clone --single-branch --branch build-testing git@gitlab.com:voxl-public/utilities/ci-tools.git
+#- git clone --single-branch --branch build-testing git@gitlab.com:voxl-public/utilities/ci-tools.git
+- git clone -q --depth 1 https://gitlab.com/voxl-public/utilities/ci-tools
 
   
 include:
