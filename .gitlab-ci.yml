@@ -1,13 +1,14 @@
 before_script:
   - git clone -q --depth 1 https://gitlab.com/voxl-public/utilities/ci-tools/
   - cd ci-tools
+  - git checkout build-testing
   
 include:
-  - project: 'voxl-public/utilities/ci-tools/-/tree/build-testing'
+  - project: 'voxl-public/utilities/ci-tools/'
     file: '/pipeline-configs/.deploy-dev.yml'
-  - project: 'voxl-public/utilities/ci-tools/-/tree/build-testing'
+  - project: 'voxl-public/utilities/ci-tools/g'
     file: '/pipeline-configs/.deploy-stable.yml'
-  - project: 'voxl-public/utilities/ci-tools/-/tree/build-testing'
+  - project: 'voxl-public/utilities/ci-tools/'
     file: '/pipeline-configs/.test-voxl-cross.yml'
 
 stages:
