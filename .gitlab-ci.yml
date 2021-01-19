@@ -3,9 +3,9 @@ before_script:
 
   
 include:
-  - project: '/ci-tools/'
+  - project: 'voxl-public/utilities/ci-tools/-/blob/build-testing/'
     file: '/pipeline-configs/.deploy-dev.yml'
-  - project: 'voxl-public/utilities/ci-tools/g'
+  - project: 'voxl-public/utilities/ci-tools/'
     file: '/pipeline-configs/.deploy-stable.yml'
   - project: 'voxl-public/utilities/ci-tools/'
     file: '/pipeline-configs/.test-voxl-cross.yml'
