@@ -3,7 +3,7 @@ before_script:
 
   
 include:
-  - project: 'voxl-public/utilities/ci-tools/-/blob/build-testing/'
+  - project: 'voxl-public/utilities/ci-tools/'
     file: '/pipeline-configs/.deploy-dev.yml'
   - project: 'voxl-public/utilities/ci-tools/'
     file: '/pipeline-configs/.deploy-stable.yml'
