@@ -1,6 +1,6 @@
 before_script:
-- git clone --single-branch --branch build-testing git@gitlab.com:voxl-public/utilities/ci-tools.git
-#- git clone -q --depth 1 https://gitlab.com/voxl-public/utilities/ci-tools
+#- git clone --single-branch --branch build-testing git@gitlab.com:voxl-public/utilities/ci-tools.git
+- git clone -q --depth 1 https://gitlab.com/voxl-public/utilities/ci-tools
 
   
 include:
@@ -11,8 +11,8 @@ include:
   - project: 'voxl-public/utilities/ci-tools/'
     file: '/pipeline-configs/.test-voxl-cross.yml'
 
-#stages:
-#  - test_stage
+stages:
+  - test_stage
 
 #only:
 #  - schedules
