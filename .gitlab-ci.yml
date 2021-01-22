@@ -1,11 +1,11 @@
 before_script:
-#- git clone --single-branch --branch build-testing git@gitlab.com:voxl-public/utilities/ci-tools.git
-- git clone -q --depth 1 https://gitlab.com/voxl-public/utilities/ci-tools
+- git clone --single-branch --branch build-testing git@gitlab.com:voxl-public/utilities/ci-tools.git
+#- git clone -q --depth 1 https://gitlab.com/voxl-public/utilities/ci-tools
 
   
 include:
-  #- project: 'voxl-public/utilities/ci-tools/'
-  - file: './ci-tools/pipeline-configs/.deploy-dev.yml'
+  - project: 'voxl-public/utilities/ci-tools/'
+    file: './ci-tools/pipeline-configs/.deploy-dev.yml'
   - project: 'voxl-public/utilities/ci-tools/'
     file: '/pipeline-configs/.deploy-stable.yml'
   - project: 'voxl-public/utilities/ci-tools/'
