@@ -7,6 +7,8 @@ include:
     file: '/pipeline-configs/.deploy-dev.yml'
   - project: 'voxl-public/utilities/ci-tools'
     file: '/pipeline-configs/.deploy-stable.yml'
+  - project: 'voxl-public/utilities/ci-tools'
+    file: '/pipeline-configs/.test-voxl-cross.yml'
 
 
 stages:
