@@ -10,7 +10,7 @@ include:
 
 
 stages:
-  - test_stage
+  - build_stage
 
 #only:
 #  - schedules
