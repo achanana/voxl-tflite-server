@@ -11,8 +11,8 @@ include:
 #    file: '/pipeline-configs/.test-voxl-cross.yml'
 
 
-stages:
-  - test_stage
+#stages:
+#  - test_stage
 
 #only:
 #  - schedules
