@@ -607,7 +607,7 @@ void TFliteMobileNet(void* pData)
         {
             ///<@todo Handle different format types
             // pImageMetadata->bits_per_pixel = 24;
-            pImageMetadata->format         = 7; ///<@todo Fix this to the correct format
+            pImageMetadata->format         = IMAGE_FORMAT_RGB; ///<@todo Fix this to the correct format
             pImageMetadata->size_bytes     = (imageWidth * imageHeight * 3);
             pImageMetadata->stride         = (imageWidth * 3);
 
