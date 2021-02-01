@@ -51,7 +51,7 @@ tar xvf data.tar.gz > /dev/null
 cp -R usr/include/* /usr/include/ > /dev/null
 rm -rf * > /dev/null
 
-echo "Installing libmodal_pipe_1.6.2 "
+echo "Installing libmodal_pipe_1.6.2"
 FILE=libmodal_pipe_1.6.2_202101301836.ipk   
 wget http://voxl-packages.modalai.com/dev/$FILE 2>/dev/null
 ar xvf $FILE > /dev/null
