@@ -16,8 +16,7 @@ Build steps
 1. (PC) cd my-git-source-code
 1. (PC) git clone git@gitlab.com:voxl-public/modal-pipe-architecture/voxl-mpa-tflite-server.git
 1. (PC) cd <path-to>/voxl-mpa-tflite-server/
-1. (PC) sudo docker run -v $PWD:/opt/data/workspace/ --net=host --privileged=true -it voxl-cross
-1. (PC_CROSS_DOCKER) cd /opt/data/workspace
+1. (PC) voxl-docker -i voxl-cross
 1. (PC_CROSS_DOCKER) ./install_build_deps.sh
 1. (PC_CROSS_DOCKER) ./clean.sh
 1. (PC_CROSS_DOCKER) ./build_aarch64.sh
