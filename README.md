@@ -19,7 +19,7 @@ Build steps
 1. (PC) voxl-docker -i voxl-cross
 1. (PC_CROSS_DOCKER) ./install_build_deps.sh
 1. (PC_CROSS_DOCKER) ./clean.sh
-1. (PC_CROSS_DOCKER) ./build_aarch64.sh
+1. (PC_CROSS_DOCKER) ./build.sh
 1. (PC_CROSS_DOCKER) ./make_package.sh
 
 Steps to run
