@@ -16,7 +16,6 @@ variables:
     GIT_SUBMODULE_STRATEGY: recursive
   
 stages:
-    - nightly_build_stage
     - build_stage
     - deploy_stage_dev
     - deploy_stage_stable
