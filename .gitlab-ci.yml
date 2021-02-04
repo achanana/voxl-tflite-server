@@ -3,6 +3,8 @@ before_script:
 
 include:
   - project: 'voxl-public/utilities/ci-tools'
+    file: '/pipeline-configs/.nightly-voxl-cross.yml'
+  - project: 'voxl-public/utilities/ci-tools'
     file: '/pipeline-configs/.build-voxl-cross.yml'
   - project: 'voxl-public/utilities/ci-tools'
     file: '/pipeline-configs/.deploy-dev.yml'
@@ -14,6 +16,7 @@ variables:
     GIT_SUBMODULE_STRATEGY: recursive
   
 stages:
+    - nightly_build_stage
     - build_stage
     - deploy_stage_dev
     - deploy_stage_stable
