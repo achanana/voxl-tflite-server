@@ -27,6 +27,7 @@ Modified by ModalAI to run the object detection model on live camera frames
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <algorithm>
 #include <vector>
 
 #include "debug_log.h"
@@ -279,12 +280,35 @@ void SendImageData(void* pData)
     // }
 }
 
+
+static void _print_type(int type){
+	string r;
+
+	uchar depth = type & CV_MAT_DEPTH_MASK;
+	uchar chans = 1 + (type >> CV_CN_SHIFT);
+
+	switch ( depth ) {
+		case CV_8U:  r = "8U"; break;
+		case CV_8S:  r = "8S"; break;
+		case CV_16U: r = "16U"; break;
+		case CV_16S: r = "16S"; break;
+		case CV_32S: r = "32S"; break;
+		case CV_32F: r = "32F"; break;
+		case CV_64F: r = "64F"; break;
+		default:     r = "User"; break;
+	}
+
+	r += "C";
+	r += (chans+'0');
+
+	std::cout << r << std::endl;
+}
+
 // -----------------------------------------------------------------------------------------------------------------------------
 // This function runs the object detection model on every live camera frame
 // -----------------------------------------------------------------------------------------------------------------------------
 void TFliteMobileNet(void* pData)
 {
-    // WILL RUN PYDNET MODEL ON CAMERA FRAMES FROM PIPE - overriding object detection
     int modelImageHeight;
     int modelImageWidth;
     int modelImageChannels;
@@ -318,8 +342,9 @@ void TFliteMobileNet(void* pData)
     }
 
     s = new tflite::label_image::Settings;
-    //Need to force read pydnet model
-    pThreadData->pDnnModelFile = "/usr/bin/dnn/pydnet_model.tflite";
+    pThreadData->pDnnModelFile = "/usr/bin/dnn/tflite_pydnet.tflite";
+
+
     s->model_name                   = pThreadData->pDnnModelFile;
     s->labels_file_name             = pThreadData->pLabelsFile;
     s->input_bmp_name               = "";
@@ -404,22 +429,22 @@ void TFliteMobileNet(void* pData)
         interpreter->SetNumThreads(s->number_of_threads);
     }
         
-    // USING GPU DELEGATES CAUSES INCORRECT MODEL OUTPUT
-    // TfLiteDelegatePtrMap delegates_ = GetDelegates(s);
 
-    // for (const auto& delegate : delegates_)
-    // {
-    //     if (interpreter->ModifyGraphWithDelegate(delegate.second.get()) != kTfLiteOk)
-    //     {
-    //         LOG(FATAL) << "Failed to apply " << delegate.first << " delegate\n";
-    //         break;
-    //     }
-    //     else
-    //     {
-    //         LOG(INFO) << "Applied " << delegate.first << " delegate ";
-    //         break;
-    //     }
-    // }
+    TfLiteDelegatePtrMap delegates_ = GetDelegates(s);
+
+    for (const auto& delegate : delegates_)
+    {
+        if (interpreter->ModifyGraphWithDelegate(delegate.second.get()) != kTfLiteOk)
+        {
+            LOG(FATAL) << "Failed to apply " << delegate.first << " delegate\n";
+            break;
+        }
+        else
+        {
+            LOG(INFO) << "Applied " << delegate.first << " delegate ";
+            break;
+        }
+    }
 
     if (interpreter->AllocateTensors() != kTfLiteOk)
     {
@@ -462,24 +487,24 @@ void TFliteMobileNet(void* pData)
     cv::Mat _mask;
     cv::Size _input_size;
 
-    _input  = cv::Mat(modelImageHeight, modelImageWidth, CV_32FC3, interpreter->typed_input_tensor<float>(0));
-    _output = cv::Mat(modelImageHeight, modelImageWidth, CV_32FC2, interpreter->typed_output_tensor<float>(0));
+    //_input  = cv::Mat(modelImageHeight, modelImageWidth, CV_32FC3, interpreter->typed_input_tensor<float>(0));
+    //_output = cv::Mat(modelImageHeight, modelImageWidth, CV_32FC2, interpreter->typed_output_tensor<float>(0));
 
-    _input_size = cv::Size(modelImageHeight, modelImageWidth);
-    // TEST WITH LOWWWW RES -> did nothing, still gets resized 
-    //_input_size = cv::Size(320, 240);
-
-    cv::Mat masked_img; 
+    _input_size = cv::Size(modelImageWidth, modelImageHeight);
+    cv::Mat masked_img = cv::Mat(); //took out img
     cv::Mat img;
 
     int queueProcessIdx = 0;
-    int i = 0; //for saving output images
+    //pThreadData->stop = false;
+    int i = 0;
+    cv::Mat sentimage = cv::Mat();
+    
     while (pThreadData->stop == false)
     {
-        //fprintf(stderr, "Made it into the while loop\n");
+        fprintf(stderr, "Made it into the while loop\n");
         if (queueProcessIdx == pThreadData->pMsgQueue->queueInsertIdx)
         {
-            //fprintf(stderr, "checking for frames?\n");
+            fprintf(stderr, "checking for frames?\n");
             std::unique_lock<std::mutex> lock(pThreadData->condMutex);
             pThreadData->condVar.wait(lock);
             continue;
@@ -523,40 +548,116 @@ void TFliteMobileNet(void* pData)
         int imageHeight   = pImageMetadata->height;
         int frameNumber   = pImageMetadata->frame_id;
 
-        cv::Mat yuv(imageHeight + imageHeight/2, imageWidth, CV_8UC1, (uchar*)pImagePixels);
-        cv::cvtColor(yuv, _resized_img_1, CV_YUV2RGB_NV12);
+        cv::Size output_size = cv::Size(pImageMetadata->height, pImageMetadata->width);
 
-        //Testing saving to image then reading it for the model
-        //cv::imwrite(std::to_string(i) + ".png", _resized_img_1);
-        //img = cv::imread(pImages[i], cv::IMREAD_COLOR);        
+        cv::Mat yuv(imageHeight + imageHeight/2, imageWidth, CV_8UC1, (uchar*)pImagePixels);
+        cv::cvtColor(yuv, _resized_img_1, CV_YUV2RGB_NV12);      
 
         int start_time = cv::getTickCount();
-
+        cv::Mat _input;
         cv::resize(_resized_img_1, _resized_img, _input_size, 0, 0, cv::INTER_LINEAR);
-        _resized_img.convertTo(_input, CV_32FC3, 1.0 / 255.0, 0.0);
-        uint8_t*               pImageData = (uint8_t*)_resized_img.data;
+        _resized_img.convertTo(_input, CV_32FC3, 1.0 / 255.0, 0.0);     
+
+        /// Trying to convert to 4d
+        int siz[] = {1, 384, 640, 3};
+        cv::Mat blob(4, siz, _input.depth(), interpreter->typed_input_tensor<float>(0));
+        std::vector<cv::Mat> slices = {
+            cv::Mat(_input.rows, _input.cols, _input.depth(), blob.ptr<uchar>(0,0)), // beware, hardcoded type here !
+            cv::Mat(_input.rows, _input.cols, _input.depth(), blob.ptr<uchar>(0,1)),
+            cv::Mat(_input.rows, _input.cols, _input.depth(), blob.ptr<uchar>(0,2)),
+        };
+        split(_input, slices);
+        std::cout << "Blob Dims" << blob.dims << std::endl;
+        ///
+
+        ///CHECKING INPUT DIMS
+        // cv::Size c = _input.size();
+        // std::cout << "Input Height" << c.height << std::endl;
+        // std::cout << "Input Width" << c.width << std::endl;
+        // std::cout << "Input Rows" << _input.rows << std::endl;
+        // std::cout << "Input Columns" << _input.cols << std::endl;
+        // std::cout << "Input Dims" << _input.dims << std::endl;
+        // _print_type(_input.type());
+        ///
+
+        /// Testing with 4d output array 
+        int siz2[] = {384, 640};
+        cv::Mat _output(2, siz2, _input.depth(), interpreter->typed_output_tensor<float>(0));
+        ///
+
         interpreter->Invoke();
+
+        std::cout << "Finished invoke" << std::endl;
+        std::cout << _output.dims << std::endl;
+        _print_type(_output.type());
+        
+        // for (int j=0; j < 1; j++){
+        //     for (int k = 0; k<384)
+        // }
+
+
+        // This a 4d array with one channel and really only one matrix...
+
+
+
 
         std::vector<cv::Mat> planes;
         split(_output, planes);
-        planes[0].convertTo(_mask, CV_8UC1, 20 * 255, 0);
+        // cv::Mat letsee;
+        // std::vector<cv::Mat> channels = {planes[0], planes[1], planes[2]};
+        // cv::merge(planes, letsee);
+        // std::cout << letsee.dims << std::endl;
+        //cv::imwrite("/usr/bin/dnn/data/letsee.png", letsee);
+
+        // std::vector<cv::Mat> planes;
+        // split(_output, planes);
+
+        // _print_type(planes[0].type());
+        cv::imwrite("/usr/bin/dnn/data/mmymat.png", _output);
+
+        // cv::imwrite("/data/channel1.png", planes[0]);
+        // cv::imwrite("/data/channel2.png", planes[1]);
+        // cv::imwrite("/data/input.png", _input);        
+
+
+        /// Noralization Testing
+        // double minVal;  
+        // double maxVal;        
+        // cv::minMaxLoc( planes[0], &minVal, &maxVal);
+        // std::cout << maxVal << std::endl;
+        // std::cout << minVal << std::endl;
+        // planes[0] = (planes[0] - minVal) / (maxVal - minVal);
+        // planes[0] =  planes[0] * 255.0;
+        ///
+        std::cout << "Made it" << std::endl;
+        planes[0].convertTo(_mask, CV_8UC1);//   8UC1);
+
+        /// Grab certain pixels? 
+        // cv::Rect tempor;
+        // tempor.x = 24;
+        // tempor.y = 192;
+        // tempor.width = 320;
+        // tempor.height = 195;
+        // cv::Mat croppedRef;
+        // cv::Mat cropped = _mask(tempor);
+        // std::cout << "Cropped" << std::endl;
+        ///
 
         cv::Mat colored_img;
-        applyColorMap(_mask, colored_img, cv::COLORMAP_PLASMA); //TESTING FOR OUTPUT
-        //applyColorMap(_mask, *pRgbImage[g_sendTcpInsertdx], cv::COLORMAP_PLASMA);
-
-        resize(colored_img, masked_img, _input_size, 0, 0, cv::INTER_NEAREST); //trying instead of output:masked_img to the pRgbImage
+        applyColorMap(_mask, colored_img, cv::COLORMAP_PLASMA); 
+        cv::resize(colored_img, *pRgbImage[g_sendTcpInsertdx], _input_size, 0, 0, cv::INTER_NEAREST); 
 
         int end_time = cv::getTickCount();
+        std::string s = std::to_string(i);
         std::cout << "\n\nFrame " << frameNumber << " process time: " << (end_time-start_time)/cv::getTickFrequency() << std::endl;
-        // To test (view) output in saved images on voxl
-        // cv::imwrite(pImagesDepth[i], masked_img);//*pRgbImage[g_sendTcpInsertdx]); OR masked_img
-        // cv::imwrite(pImages[i], _resized_img);
-        // i++;
-
-        std::cout << "hit the i++ marker" << std::endl;
-        //char* frameData = (char*)masked_img.data;
-        *pRgbImage[g_sendTcpInsertdx] = masked_img;
+        cv::imwrite("/usr/bin/dnn/data/" + s + "-reg.png", planes[0]);
+        cv::imwrite(pImages[i], *pRgbImage[g_sendTcpInsertdx]);
+        i++;
+        //MyData myData = GetData();
+        //std::ofstream binaryFile ("/usr/bin/dnn/data/frame" + s + ".raw", std::ios::out | std::ios::binary);
+        //*pRgbImage[g_sendTcpInsertdx] = trial;
+        //binaryFile.write ((char*)pRgbImage[g_sendTcpInsertdx]->data, (imageWidth * imageHeight * 3));
+        //binaryFile.close();
 
 #ifdef FRAME_DUMP
                 char filename[128];
@@ -564,32 +665,27 @@ void TFliteMobileNet(void* pData)
                     sprintf(filename, "/data/misc/camera/frame_%d.bmp", frameNumber);
                     cv::imwrite(filename, *pRgbImage[g_sendTcpInsertdx]);
                 }
-#endif // FRAME_DUMP
-        
-        
+#endif // FRAME_DUMP      
 
         LOG(INFO) << "\n\n";
-        std::cout << "hit the loginfo marker" << std::endl;
 
-        if (pTcpServer == NULL)
+        if (pTcpServer == NULL) 
         {
-            
-            ///<@todo Handle different format types
-            // pImageMetadata->bits_per_pixel = 24;
-            pImageMetadata->format         = IMAGE_FORMAT_YUV422; ///<@todo Fix this to the correct format
-            pImageMetadata->size_bytes     = (imageWidth * imageHeight * 2);
-            pImageMetadata->stride         = (imageWidth * 3);
-
-            //FAILS HERE 
+          
+            ///<@todo Handle different format typesNV12
+            pImageMetadata->format         = IMAGE_FORMAT_RGB; ///<@todo Fix this to the correct format
+            pImageMetadata->size_bytes     = (imageWidth * imageHeight * 3); // * 3);
+            pImageMetadata->stride         = (imageWidth * 3); //* 3);
+            pImageMetadata->height = 640;
+            pImageMetadata->width = 480;
             pExternalInterface->BroadcastFrame(OUTPUT_ID_RGB_IMAGE, (char*)pImageMetadata, sizeof(camera_image_metadata_t));
-            std::cout << "pExternalInterface->BroadcastFrame1" << std::endl;
             pExternalInterface->BroadcastFrame(OUTPUT_ID_RGB_IMAGE,
-                                               (char*)pRgbImage[g_sendTcpInsertdx]->data,
-                                               pImageMetadata->size_bytes);
-            std::cout << "pExternalInterface->BroadcastFrame2" << std::endl;
+                                        (char*)pRgbImage[g_sendTcpInsertdx]->data,
+                                        pImageMetadata->size_bytes);
         }
 
-         queueProcessIdx = ((queueProcessIdx + 1) % MAX_MESSAGES);
+           queueProcessIdx = ((queueProcessIdx + 1) % MAX_MESSAGES);
+        
      }
 
 
@@ -617,10 +713,8 @@ void TFliteMobileNet(void* pData)
         }
     }
 }
-
   // namespace label_image
   // namespace tflite
-
 
 // -----------------------------------------------------------------------------------------------------------------------------
 // This function runs the tflite model
@@ -814,7 +908,6 @@ void TflitePydnet(void* pData)
 
 }  // namespace label_image
 }  // namespace tflite
-
 
 // -----------------------------------------------------------------------------------------------------------------------------
 // This thread runs the pydnet model
