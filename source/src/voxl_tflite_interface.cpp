@@ -471,6 +471,7 @@ void TFliteMobileNet(void* pData)
 
     gettimeofday(&begin_time, nullptr);
 
+
     setpriority(which, tid, nice);
 
 
@@ -487,17 +488,10 @@ void TFliteMobileNet(void* pData)
     cv::Mat _mask;
     cv::Size _input_size;
 
-    //_input  = cv::Mat(modelImageHeight, modelImageWidth, CV_32FC3, interpreter->typed_input_tensor<float>(0));
-    //_output = cv::Mat(modelImageHeight, modelImageWidth, CV_32FC2, interpreter->typed_output_tensor<float>(0));
-
     _input_size = cv::Size(modelImageWidth, modelImageHeight);
-    cv::Mat masked_img = cv::Mat(); //took out img
-    cv::Mat img;
+    cv::Mat masked_img = cv::Mat(); 
 
     int queueProcessIdx = 0;
-    //pThreadData->stop = false;
-    int i = 0;
-    cv::Mat sentimage = cv::Mat();
     
     while (pThreadData->stop == false)
     {
@@ -509,28 +503,6 @@ void TFliteMobileNet(void* pData)
             pThreadData->condVar.wait(lock);
             continue;
         }
-
-        static char* pImages[] =
-        {
-            (char*)"/usr/bin/dnn/data/0.png",
-            (char*)"/usr/bin/dnn/data/1.png",
-            (char*)"/usr/bin/dnn/data/2.png",
-            (char*)"/usr/bin/dnn/data/3.png",
-            (char*)"/usr/bin/dnn/data/4.png",
-            (char*)"/usr/bin/dnn/data/5.png",
-            (char*)"/usr/bin/dnn/data/6.png"
-        };
-
-        static char* pImagesDepth[] =
-        {
-            (char*)"/usr/bin/dnn/data/0-depth.png",
-            (char*)"/usr/bin/dnn/data/1-depth.png",
-            (char*)"/usr/bin/dnn/data/2-depth.png",
-            (char*)"/usr/bin/dnn/data/3-depth.png",
-            (char*)"/usr/bin/dnn/data/4-depth.png",
-            (char*)"/usr/bin/dnn/data/5-depth.png",
-            (char*)"/usr/bin/dnn/data/6-depth.png"
-        };
         // Coming here means we have a frame to run through the DNN model
         fprintf(stderr, "frame received\n");
         numFrames++;
@@ -546,118 +518,54 @@ void TFliteMobileNet(void* pData)
 
         int imageWidth    = pImageMetadata->width;
         int imageHeight   = pImageMetadata->height;
+        int imageChannels = 3;
         int frameNumber   = pImageMetadata->frame_id;
 
-        cv::Size output_size = cv::Size(pImageMetadata->height, pImageMetadata->width);
-
         cv::Mat yuv(imageHeight + imageHeight/2, imageWidth, CV_8UC1, (uchar*)pImagePixels);
-        cv::cvtColor(yuv, _resized_img_1, CV_YUV2RGB_NV12);      
+        cv::cvtColor(yuv, *pRgbImage[g_sendTcpInsertdx], CV_YUV2RGB_NV12);      
+
+        cv::resize(*pRgbImage[g_sendTcpInsertdx],
+                   resizedImage,
+                   cv::Size(modelImageWidth, modelImageHeight),
+                   0,
+                   0,
+                   CV_INTER_LINEAR);
 
         int start_time = cv::getTickCount();
-        cv::Mat _input;
-        cv::resize(_resized_img_1, _resized_img, _input_size, 0, 0, cv::INTER_LINEAR);
-        _resized_img.convertTo(_input, CV_32FC3, 1.0 / 255.0, 0.0);     
 
-        /// Trying to convert to 4d
-        int siz[] = {1, 384, 640, 3};
-        cv::Mat blob(4, siz, _input.depth(), interpreter->typed_input_tensor<float>(0));
-        std::vector<cv::Mat> slices = {
-            cv::Mat(_input.rows, _input.cols, _input.depth(), blob.ptr<uchar>(0,0)), // beware, hardcoded type here !
-            cv::Mat(_input.rows, _input.cols, _input.depth(), blob.ptr<uchar>(0,1)),
-            cv::Mat(_input.rows, _input.cols, _input.depth(), blob.ptr<uchar>(0,2)),
-        };
-        split(_input, slices);
-        std::cout << "Blob Dims" << blob.dims << std::endl;
-        ///
+        uint8_t*               pImageData = (uint8_t*)resizedImage.data;
+        const std::vector<int> inputs     = interpreter->inputs();
+        const std::vector<int> outputs    = interpreter->outputs();
 
-        ///CHECKING INPUT DIMS
-        // cv::Size c = _input.size();
-        // std::cout << "Input Height" << c.height << std::endl;
-        // std::cout << "Input Width" << c.width << std::endl;
-        // std::cout << "Input Rows" << _input.rows << std::endl;
-        // std::cout << "Input Columns" << _input.cols << std::endl;
-        // std::cout << "Input Dims" << _input.dims << std::endl;
-        // _print_type(_input.type());
-        ///
+        int input = interpreter->inputs()[0];
 
-        /// Testing with 4d output array 
-        int siz2[] = {384, 640};
-        cv::Mat _output(2, siz2, _input.depth(), interpreter->typed_output_tensor<float>(0));
-        ///
+        s->input_floating = true;
+        resize<float>(interpreter->typed_tensor<float>(input), pImageData,
+                        modelImageHeight, modelImageWidth, imageChannels, modelImageHeight,
+                        modelImageWidth, modelImageChannels, s);
 
         interpreter->Invoke();
 
-        std::cout << "Finished invoke" << std::endl;
-        std::cout << _output.dims << std::endl;
-        _print_type(_output.type());
-        
-        // for (int j=0; j < 1; j++){
-        //     for (int k = 0; k<384)
-        // }
+        TfLiteTensor* output_locations    = interpreter->tensor(interpreter->outputs()[0]);
+        float* depth  = TensorData<float>(output_locations, 0);
+        cv::Mat depthImage(384, 640, CV_32FC1, depth);
 
-
-        // This a 4d array with one channel and really only one matrix...
-
-
-
-
-        std::vector<cv::Mat> planes;
-        split(_output, planes);
-        // cv::Mat letsee;
-        // std::vector<cv::Mat> channels = {planes[0], planes[1], planes[2]};
-        // cv::merge(planes, letsee);
-        // std::cout << letsee.dims << std::endl;
-        //cv::imwrite("/usr/bin/dnn/data/letsee.png", letsee);
-
-        // std::vector<cv::Mat> planes;
-        // split(_output, planes);
-
-        // _print_type(planes[0].type());
-        cv::imwrite("/usr/bin/dnn/data/mmymat.png", _output);
-
-        // cv::imwrite("/data/channel1.png", planes[0]);
-        // cv::imwrite("/data/channel2.png", planes[1]);
-        // cv::imwrite("/data/input.png", _input);        
-
-
-        /// Noralization Testing
-        // double minVal;  
-        // double maxVal;        
-        // cv::minMaxLoc( planes[0], &minVal, &maxVal);
-        // std::cout << maxVal << std::endl;
-        // std::cout << minVal << std::endl;
-        // planes[0] = (planes[0] - minVal) / (maxVal - minVal);
-        // planes[0] =  planes[0] * 255.0;
+        /// Noralization 
+        double minVal;  
+        double maxVal;        
+        cv::minMaxLoc(depthImage, &minVal, &maxVal);
+        depthImage = (depthImage - minVal) / (maxVal - minVal);
+        depthImage = depthImage * 255.0;
         ///
-        std::cout << "Made it" << std::endl;
-        planes[0].convertTo(_mask, CV_8UC1);//   8UC1);
 
-        /// Grab certain pixels? 
-        // cv::Rect tempor;
-        // tempor.x = 24;
-        // tempor.y = 192;
-        // tempor.width = 320;
-        // tempor.height = 195;
-        // cv::Mat croppedRef;
-        // cv::Mat cropped = _mask(tempor);
-        // std::cout << "Cropped" << std::endl;
-        ///
+        depthImage.convertTo(_mask, CV_8UC1);
 
         cv::Mat colored_img;
         applyColorMap(_mask, colored_img, cv::COLORMAP_PLASMA); 
         cv::resize(colored_img, *pRgbImage[g_sendTcpInsertdx], _input_size, 0, 0, cv::INTER_NEAREST); 
 
         int end_time = cv::getTickCount();
-        std::string s = std::to_string(i);
         std::cout << "\n\nFrame " << frameNumber << " process time: " << (end_time-start_time)/cv::getTickFrequency() << std::endl;
-        cv::imwrite("/usr/bin/dnn/data/" + s + "-reg.png", planes[0]);
-        cv::imwrite(pImages[i], *pRgbImage[g_sendTcpInsertdx]);
-        i++;
-        //MyData myData = GetData();
-        //std::ofstream binaryFile ("/usr/bin/dnn/data/frame" + s + ".raw", std::ios::out | std::ios::binary);
-        //*pRgbImage[g_sendTcpInsertdx] = trial;
-        //binaryFile.write ((char*)pRgbImage[g_sendTcpInsertdx]->data, (imageWidth * imageHeight * 3));
-        //binaryFile.close();
 
 #ifdef FRAME_DUMP
                 char filename[128];
@@ -673,11 +581,9 @@ void TFliteMobileNet(void* pData)
         {
           
             ///<@todo Handle different format typesNV12
-            pImageMetadata->format         = IMAGE_FORMAT_RGB; ///<@todo Fix this to the correct format
-            pImageMetadata->size_bytes     = (imageWidth * imageHeight * 3); // * 3);
-            pImageMetadata->stride         = (imageWidth * 3); //* 3);
-            pImageMetadata->height = 640;
-            pImageMetadata->width = 480;
+            pImageMetadata->format         = IMAGE_FORMAT_RGB;   
+            pImageMetadata->size_bytes     = (imageWidth * imageHeight * 3); 
+            pImageMetadata->stride         = (imageWidth * 3); 
             pExternalInterface->BroadcastFrame(OUTPUT_ID_RGB_IMAGE, (char*)pImageMetadata, sizeof(camera_image_metadata_t));
             pExternalInterface->BroadcastFrame(OUTPUT_ID_RGB_IMAGE,
                                         (char*)pRgbImage[g_sendTcpInsertdx]->data,
