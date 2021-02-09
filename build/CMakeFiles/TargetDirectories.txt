@@ -1,7 +1,0 @@
-/home/root/build/CMakeFiles/install.dir
-/home/root/build/CMakeFiles/list_install_components.dir
-/home/root/build/CMakeFiles/rebuild_cache.dir
-/home/root/build/CMakeFiles/voxl-mpa-tflite-server.dir
-/home/root/build/CMakeFiles/install/local.dir
-/home/root/build/CMakeFiles/install/strip.dir
-/home/root/build/CMakeFiles/edit_cache.dir
