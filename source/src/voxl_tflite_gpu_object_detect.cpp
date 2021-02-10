@@ -56,7 +56,7 @@
 
 // Tensorflow thread
 extern void* ThreadMobileNet(void* data);
-extern void* ThreadTflitePydnet(void* pData);
+extern void* ThreadTflitePydnet(void* data); //from pData to data MJT
 extern void* ThreadSendImageData(void* data);
 extern char* PydnetModel;
 extern char* MobileNetModel;
@@ -202,7 +202,7 @@ Status TFliteModelExecute::Initialize(TFLiteInitData* pInitData)
     if (!strcmp(pInitData->pDnnModelFile, PydnetModel))
     {
         pthread_create(&(m_tfliteThreadData.thread), &tfliteAttr, ThreadTflitePydnet, &m_tfliteThreadData);
-        isPydnet = true;
+        //isPydnet = false; changed for live frame access with pydnet
     }
     else if (!strcmp(pInitData->pDnnModelFile, MobileNetModel))
     {

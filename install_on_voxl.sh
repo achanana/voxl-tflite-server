@@ -49,19 +49,19 @@ elif [ $NUM_FILES -gt "1" ]; then
 fi
 
 echo "searching for ADB device"
-#adb wait-for-device
-#echo "adb device found"
+adb wait-for-device
+echo "adb device found"
 
 # now we know only one ipk file exists
 FILE=$(ls -1q $PACKAGE*.ipk)
 echo "pushing $FILE to target"
 
-adb -s 6ce27684 push $FILE /home/root/ipk/$FILE
-adb -s 6ce27684 shell "opkg remove $PACKAGE"
+adb push $FILE /home/root/ipk/$FILE
+adb shell "opkg remove $PACKAGE"
 
-adb -s 6ce27684 shell "opkg install --force-reinstall --force-downgrade --force-depends /home/root/ipk/$FILE"
+adb shell "opkg install --force-reinstall --force-downgrade --force-depends /home/root/ipk/$FILE"
 
-adb -s 6ce27684 shell "mv /usr/lib64/libstdc++.so.6.0.20 /usr/lib64/libstdc++.so.6.0.20.ORIGINAL 2>/dev/null"
+adb shell "mv /usr/lib64/libstdc++.so.6.0.20 /usr/lib64/libstdc++.so.6.0.20.ORIGINAL 2>/dev/null"
 cd modalai
 rm -rf temporary 2>/dev/null
 mkdir temporary
@@ -70,17 +70,18 @@ cd temporary
 mkdir temp
 cd temp
 
+
 echo "Installing libmodal_json"
 FILE=libmodal_json_0.3.0_202012090513.ipk
 wget http://voxl-packages.modalai.com/dev/$FILE 2>/dev/null
 adb -s 6ce27684 push $FILE /home/root/ipk/$FILE
 adb -s 6ce27684 shell "opkg install --force-reinstall --force-downgrade --force-depends /home/root/ipk/$FILE"
 
-#echo "Installing libmodal_pipe"
-#FILE=libmodal_pipe_1.6.1_202012232352.ipk
-#wget http://voxl-packages.modalai.com/dev/$FILE 2>/dev/null
-#adb push $FILE /home/root/ipk/$FILE
-#adb shell "opkg install --force-reinstall --force-downgrade --force-depends /home/root/ipk/$FILE"
+echo "Installing libmodal_pipe"
+FILE=libmodal_pipe_1.6.2_202101301836.ipk   
+wget http://voxl-packages.modalai.com/dev/$FILE 2>/dev/null
+adb push $FILE /home/root/ipk/$FILE
+adb shell "opkg install --force-reinstall --force-downgrade --force-depends /home/root/ipk/$FILE"
 
 echo "Installing opencv_4.3.0"
 FILE=opencv_4.3.0.ipk
