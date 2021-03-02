@@ -49,7 +49,7 @@
 volatile int            g_keepRunning = 1;
 std::mutex              g_exitCondMutex;
 std::condition_variable g_exitCondVar;
-char* PydnetModel    = (char*)"/usr/bin/dnn/pydnet_model.tflite";
+char* PydnetModel    = (char*)"/usr/bin/dnn/tflite_pydnet.tflite";
 char* MobileNetModel = (char*)"/usr/bin/dnn/mobilenet_v1_ssd_coco_labels.tflite";
 
 
@@ -146,7 +146,6 @@ int ParseArgs(int         argc,
                 if (!strcmp(pDnnModelFile, "pydnet"))
                 {
                     strcpy(pDnnModelFile, PydnetModel);
-                    g_keepRunning = 0;
                 }
                 else if (!strcmp(pDnnModelFile, "mobilenet"))
                 {

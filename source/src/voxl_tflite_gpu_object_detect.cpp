@@ -31,9 +31,8 @@
 //  * POSSIBILITY OF SUCH DAMAGE.
 //  ******************************************************************************/
 
-#include <modal_pipe_client.h>
-#include <modal_camera_server_interface.h>
-#include <voxl_camera_server.h>
+
+#include <modal_pipe.h>
 #include <getopt.h>     // NOLINT(build/include_order)
 #include <sys/time.h>   // NOLINT(build/include_order)
 #include <sys/types.h>  // NOLINT(build/include_order)
@@ -56,7 +55,7 @@
 
 // Tensorflow thread
 extern void* ThreadMobileNet(void* data);
-extern void* ThreadTflitePydnet(void* pData);
+extern void* ThreadTflitePydnet(void* data); //from pData to data MJT
 extern void* ThreadSendImageData(void* data);
 extern char* PydnetModel;
 extern char* MobileNetModel;
@@ -202,7 +201,7 @@ Status TFliteModelExecute::Initialize(TFLiteInitData* pInitData)
     if (!strcmp(pInitData->pDnnModelFile, PydnetModel))
     {
         pthread_create(&(m_tfliteThreadData.thread), &tfliteAttr, ThreadTflitePydnet, &m_tfliteThreadData);
-        isPydnet = true;
+        //isPydnet = false; changed for live frame access with pydnet
     }
     else if (!strcmp(pInitData->pDnnModelFile, MobileNetModel))
     {
@@ -241,7 +240,7 @@ Status TFliteModelExecute::Initialize(TFLiteInitData* pInitData)
             // pthread_mutex_unlock(&m_tfliteThreadData.mutex);
 
             inputData.ImageReceivedCallback = PipeImageDataCb;
-            inputData.pipeName              = HIRES_PREVIEW_CHANNEL_DIR;
+            inputData.pipeName              = "/run/mpa/hires_preview/"; ///@todo should not be hardcoded
 
             m_pInputPipeInterface = CameraNamedPipe::Create();
 

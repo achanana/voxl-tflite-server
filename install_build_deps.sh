@@ -33,6 +33,13 @@
 
 #!/bin/bash
 
+REPO="http://voxl-packages.modalai.com/dev"
+if [[ $# -eq 1 ]] ; then
+    echo "[INFO] updating repo to pull from"
+    REPO="http://voxl-packages.modalai.com/"$1
+fi
+echo "[INFO] Using repo: "$REPO
+
 echo ""
 mkdir /usr/lib64/ 2>/dev/null
 
@@ -43,31 +50,17 @@ chmod 777 temporary
 cd temporary
 mkdir temp
 cd temp
-echo "Installing voxl-camera-server"
-FILE=voxl-camera-server_0.2.7_202012150040.ipk
-wget http://voxl-packages.modalai.com/dev/$FILE 2>/dev/null
-ar xvf $FILE > /dev/null
-tar xvf data.tar.gz > /dev/null
-cp -R usr/include/* /usr/include/ > /dev/null
-rm -rf * > /dev/null
 
-echo "Installing libmodal_pipe_1.6.1"
-FILE=libmodal_pipe_1.6.1_202012232352.ipk
-wget http://voxl-packages.modalai.com/dev/$FILE 2>/dev/null
-ar xvf $FILE > /dev/null
-tar xvf data.tar.gz > /dev/null
-cp -R usr/include/* /usr/include/ > /dev/null
-cp -R usr/lib64/* /usr/lib64/ > /dev/null
-rm -rf * 2>/dev/null
+sudo opkg update
 
-echo "Installing opencv_4.3.0"
-FILE=opencv_4.3.0.ipk
-wget http://voxl-packages.modalai.com/dev/$FILE 2>/dev/null
-ar xvf $FILE > /dev/null
-tar xvf data.tar.gz > /dev/null
-cp -R usr/include/* /usr/include/ > /dev/null
-cp -R usr/lib64/* /usr/lib64/ > /dev/null
-rm -rf * > /dev/null
+
+DEPS="libmodal_pipe libmodal_json opencv"
+
+# install/update each dependency
+for i in ${DEPS}; do
+    # this will also update if already installed!
+    sudo opkg install $i
+done
 
 echo "Installing voxl_tflite_2_2_x"
 FILE=voxl_tflite_2_2_x.ipk
