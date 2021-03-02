@@ -72,7 +72,7 @@ void NamedPipe::Destroy()
 {
     if (m_spNamedPipe != NULL)
     {
-        pipe_server_close_all_channels();
+        pipe_server_close_all();
         delete m_spNamedPipe;
         m_spNamedPipe = NULL;
     }

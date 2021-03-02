@@ -70,24 +70,15 @@ cd temporary
 mkdir temp
 cd temp
 
+adb shell "sudo opkg update"
 
-echo "Installing libmodal_json"
-FILE=libmodal_json_0.3.0_202012090513.ipk
-wget http://voxl-packages.modalai.com/dev/$FILE 2>/dev/null
-adb -s 6ce27684 push $FILE /home/root/ipk/$FILE
-adb -s 6ce27684 shell "opkg install --force-reinstall --force-downgrade --force-depends /home/root/ipk/$FILE"
+DEPS="libmodal_pipe libmodal_json opencv"
 
-echo "Installing libmodal_pipe"
-FILE=libmodal_pipe_1.6.2_202101301836.ipk   
-wget http://voxl-packages.modalai.com/dev/$FILE 2>/dev/null
-adb push $FILE /home/root/ipk/$FILE
-adb shell "opkg install --force-reinstall --force-downgrade --force-depends /home/root/ipk/$FILE"
-
-echo "Installing opencv_4.3.0"
-FILE=opencv_4.3.0.ipk
-wget http://voxl-packages.modalai.com/dev/$FILE 2>/dev/null
-adb -s 6ce27684 push $FILE /home/root/ipk/$FILE
-adb -s 6ce27684 shell "opkg install --force-reinstall --force-downgrade --force-depends /home/root/ipk/$FILE"
+# install/update each dependency
+for i in ${DEPS}; do
+    # this will also update if already installed!
+    adb shell "sudo opkg install $i"
+done
 
 echo "Installing voxl-gpulibs"
 FILE=voxl-gpulibs-64bit.ipk

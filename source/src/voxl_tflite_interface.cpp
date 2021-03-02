@@ -33,18 +33,13 @@ Modified by ModalAI to run the object detection model on live camera frames
 #include "debug_log.h"
 #include "external_interface.h"
 #include "memory.h"
-#include "modal_camera_server_interface.h"
-//#include "nnapi_delegate.h"
+#include <modal_pipe.h>
 #include "bitmap_helpers.h"
 #include "optional_debug_tools.h"
 #include "utils.h"
 #include "voxl_tflite_interface.h"
-//#include <opencv2/core/core_c.h>
-//#include <opencv2/core/types_c.h>
 #include <opencv2/opencv.hpp>
 #include <opencv2/imgproc/types_c.h>
-//#include "opencv2/opencv.hpp"
-//#include <opencv2/core/ocl.hpp>
 #include "tcp_utils.hpp"
 
 #define LOG(x) std::cout
