@@ -83,7 +83,7 @@ done
 echo "Installing voxl-gpulibs"
 FILE=voxl-gpulibs-64bit.ipk
 cp ../../$FILE .
-adb -s 6ce27684 push $FILE /home/root/ipk/$FILE
-adb -s 6ce27684 shell "opkg install --force-reinstall --force-downgrade --force-depends /home/root/ipk/$FILE"
+adb push $FILE /home/root/ipk/$FILE
+adb shell "opkg install --force-reinstall --force-downgrade --force-depends /home/root/ipk/$FILE"
 
-adb -s 6ce27684 shell "mv /usr/lib64/libstdc++.so.6.0.22 /usr/lib64/libstdc++.so.6.0.20 2>/dev/null"
+adb shell "mv /usr/lib64/libstdc++.so.6.0.22 /usr/lib64/libstdc++.so.6.0.20 2>/dev/null"
