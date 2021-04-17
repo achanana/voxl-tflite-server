@@ -606,20 +606,19 @@ void TFliteMobileNet(void* pData)
         }
 
         LOG(INFO) << "\n\n";
-        cv::Mat sentImage;
-        cv::cvtColor(*pRgbImage[g_sendTcpInsertdx], sentImage, CV_RGB2GRAY);
+        
         if (pTcpServer == NULL)
         {
             ///<@todo Handle different format types
             // pImageMetadata->bits_per_pixel = 24;
-            pImageMetadata->format         = IMAGE_FORMAT_RAW8; ///<@todo Fix this to the correct format
-            pImageMetadata->size_bytes     = (imageHeight * imageWidth);
-            pImageMetadata->stride         = (modelImageWidth * 1);
+            pImageMetadata->format         = IMAGE_FORMAT_RGB; ///<@todo Fix this to the correct format
+            pImageMetadata->size_bytes     = (imageHeight * imageWidth * 3);
+            pImageMetadata->stride         = (modelImageWidth * 3);
 
             pExternalInterface->BroadcastFrame(OUTPUT_ID_RGB_IMAGE, (char*)pImageMetadata, sizeof(camera_image_metadata_t));
             pExternalInterface->BroadcastFrame(OUTPUT_ID_RGB_IMAGE,
-                                               (char*)sentImage.data,
-                                               imageWidth * imageHeight);
+                                               (char*)pRgbImage[g_sendTcpInsertdx]->data,
+                                               imageWidth * imageHeight * 3);
         }
 
          queueProcessIdx = ((queueProcessIdx + 1) % MAX_MESSAGES);
