@@ -240,7 +240,7 @@ Status TFliteModelExecute::Initialize(TFLiteInitData* pInitData)
             // pthread_mutex_unlock(&m_tfliteThreadData.mutex);
 
             inputData.ImageReceivedCallback = PipeImageDataCb;
-            inputData.pipeName              = "/run/mpa/hires_preview/"; ///@todo should not be hardcoded
+            inputData.pipeName              = "/run/mpa/tracking/"; ///@todo should not be hardcoded
 
             m_pInputPipeInterface = CameraNamedPipe::Create();
 

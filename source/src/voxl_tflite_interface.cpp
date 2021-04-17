@@ -472,8 +472,12 @@ void TFliteMobileNet(void* pData)
 
         // RotateNV21(pRotatedYuv, (uint8_t*)pTempYuv, imageWidth, imageHeight, rotation);
         // cv::Mat yuv(imageHeight + imageHeight/2, imageWidth, CV_8UC1, (uchar*)pRotatedYuv);
-        cv::Mat yuv(imageHeight + imageHeight/2, imageWidth, CV_8UC1, (uchar*)pImagePixels);
-        cv::cvtColor(yuv, *pRgbImage[g_sendTcpInsertdx], CV_YUV2RGB_NV21);
+        // if (pImagePixels == NULL){
+        //     printf("EMPTY FRAME?\n");
+        //     continue;
+        // }
+        cv::Mat yuv(imageHeight, imageWidth, CV_8UC1, (uchar*)pImagePixels);
+        cv::cvtColor(yuv, *pRgbImage[g_sendTcpInsertdx], CV_GRAY2RGB);
         cv::resize(*pRgbImage[g_sendTcpInsertdx],
                    resizedImage,
                    cv::Size(modelImageWidth, modelImageHeight),
@@ -481,6 +485,7 @@ void TFliteMobileNet(void* pData)
                    0,
                    CV_INTER_LINEAR);
         gettimeofday(&yuvrgb_stop_time, nullptr);
+
 
         totalYuvRgbTimemsecs += (get_us(yuvrgb_stop_time) - get_us(yuvrgb_start_time)) / 1000;
 
@@ -588,6 +593,7 @@ void TFliteMobileNet(void* pData)
                 cv::rectangle(*pRgbImage[g_sendTcpInsertdx], rect, cv::Scalar(0, 200, 0), 7);
                 cv::putText(*pRgbImage[g_sendTcpInsertdx],
                             labels[detected_classes[i]], pt, cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255, 0, 0), 2);
+            
 
 #ifdef FRAME_DUMP
                 char filename[128];
@@ -600,22 +606,23 @@ void TFliteMobileNet(void* pData)
         }
 
         LOG(INFO) << "\n\n";
-
+        cv::Mat sentImage;
+        cv::cvtColor(*pRgbImage[g_sendTcpInsertdx], sentImage, CV_RGB2GRAY);
         if (pTcpServer == NULL)
         {
             ///<@todo Handle different format types
             // pImageMetadata->bits_per_pixel = 24;
-            pImageMetadata->format         = IMAGE_FORMAT_RGB; ///<@todo Fix this to the correct format
-            pImageMetadata->size_bytes     = (imageWidth * imageHeight * 3);
-            pImageMetadata->stride         = (imageWidth * 3);
+            pImageMetadata->format         = IMAGE_FORMAT_RAW8; ///<@todo Fix this to the correct format
+            pImageMetadata->size_bytes     = (imageHeight * imageWidth);
+            pImageMetadata->stride         = (modelImageWidth * 1);
 
             pExternalInterface->BroadcastFrame(OUTPUT_ID_RGB_IMAGE, (char*)pImageMetadata, sizeof(camera_image_metadata_t));
             pExternalInterface->BroadcastFrame(OUTPUT_ID_RGB_IMAGE,
-                                               (char*)pRgbImage[g_sendTcpInsertdx]->data,
-                                               pImageMetadata->size_bytes);
+                                               (char*)sentImage.data,
+                                               imageWidth * imageHeight);
         }
 
-        queueProcessIdx = ((queueProcessIdx + 1) % MAX_MESSAGES);
+         queueProcessIdx = ((queueProcessIdx + 1) % MAX_MESSAGES);
     }
 
 #ifdef STATS_DUMP
@@ -854,10 +861,12 @@ void TflitePydnet(void* pData)
         int imageChannels = 3;
         cv::Mat colored_img;
 
+
         gettimeofday(&yuvrgb_start_time, nullptr);
 
         cv::Mat yuv(imageHeight + imageHeight/2, imageWidth, CV_8UC1, (uchar*)pImagePixels);
         cv::cvtColor(yuv, colored_img, CV_YUV2RGB_NV12);      
+
 
         cv::resize(colored_img,
                    resizedImage,
@@ -868,7 +877,7 @@ void TflitePydnet(void* pData)
         gettimeofday(&yuvrgb_stop_time, nullptr);
         totalYuvRgbTimemsecs += (get_us(yuvrgb_stop_time) - get_us(yuvrgb_start_time)) / 1000;
 
-        
+
 
         uint8_t*               pImageData = (uint8_t*)resizedImage.data;
         const std::vector<int> inputs     = interpreter->inputs();
