@@ -61,29 +61,29 @@ adb shell "opkg remove $PACKAGE"
 
 adb shell "opkg install --force-reinstall --force-downgrade --force-depends /home/root/ipk/$FILE"
 
-# adb shell "mv /usr/lib64/libstdc++.so.6.0.20 /usr/lib64/libstdc++.so.6.0.20.ORIGINAL 2>/dev/null"
-# cd modalai
-# rm -rf temporary 2>/dev/null
-# mkdir temporary
-# chmod 777 temporary
-# cd temporary
-# mkdir temp
-# cd temp
+adb shell "mv /usr/lib64/libstdc++.so.6.0.20 /usr/lib64/libstdc++.so.6.0.20.ORIGINAL 2>/dev/null"
+cd modalai
+rm -rf temporary 2>/dev/null
+mkdir temporary
+chmod 777 temporary
+cd temporary
+mkdir temp
+cd temp
 
-# adb shell "sudo opkg update"
+adb shell "sudo opkg update"
 
-# DEPS="libmodal_pipe libmodal_json opencv"
+DEPS="libmodal_pipe libmodal_json opencv"
 
-# # install/update each dependency
-# for i in ${DEPS}; do
-#     # this will also update if already installed!
-#     adb shell "sudo opkg install $i"
-# done
+# install/update each dependency
+for i in ${DEPS}; do
+    # this will also update if already installed!
+    adb shell "sudo opkg install $i"
+done
 
-# echo "Installing voxl-gpulibs"
-# FILE=voxl-gpulibs-64bit.ipk
-# cp ../../$FILE .
-# adb push $FILE /home/root/ipk/$FILE
-# adb shell "opkg install --force-reinstall --force-downgrade --force-depends /home/root/ipk/$FILE"
+echo "Installing voxl-gpulibs"
+FILE=voxl-gpulibs-64bit.ipk
+cp ../../$FILE .
+adb push $FILE /home/root/ipk/$FILE
+adb shell "opkg install --force-reinstall --force-downgrade --force-depends /home/root/ipk/$FILE"
 
-# adb shell "mv /usr/lib64/libstdc++.so.6.0.22 /usr/lib64/libstdc++.so.6.0.20 2>/dev/null"
+adb shell "mv /usr/lib64/libstdc++.so.6.0.22 /usr/lib64/libstdc++.so.6.0.20 2>/dev/null"
