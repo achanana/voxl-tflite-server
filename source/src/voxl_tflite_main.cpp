@@ -91,7 +91,8 @@ int ParseArgs(int         argc,
               int*        pDumpPreviewFrames,
               char*       pIPAddress,
               char*       pDnnModelFile,
-              char*       pLabelsFile)
+              char*       pLabelsFile,
+              int*        pCamera)
 {
     static struct option LongOptions[] =
     {
@@ -108,10 +109,22 @@ int ParseArgs(int         argc,
     int status           = 0;
     int option;
 
-    while ((status == 0) && (option = getopt_long_only (argc, pArgv, ":d:i:m:l:h", &LongOptions[0], &optionIndex)) != -1)
+    while ((status == 0) && (option = getopt_long_only (argc, pArgv, "c:d:i:m:l:h", &LongOptions[0], &optionIndex)) != -1)
     {
         switch(option)
         {
+            case 'c':
+                numInputsScanned = sscanf(optarg, "%d", pCamera);
+                if (ErrorCheck(numInputsScanned, LongOptions[optionIndex].name) != 0)
+                {
+                    printf("\nNo camera specified");
+                    status = -EINVAL;
+                }
+                if (*pCamera > 1 || *pCamera < 0){
+                    printf("\nInvalid camera option specified");
+                    status = -EINVAL;
+                }
+                break;
             case 'd':
                 numInputsScanned = sscanf(optarg, "%d", pDumpPreviewFrames);
 
@@ -189,6 +202,7 @@ int ParseArgs(int         argc,
 void PrintHelpMessage()
 {
     printf("\n\nCommand line arguments are as follows:\n");
+    printf("\n-c : Camera to use for object detection: 0 for hires, 1 for tracking. (Default: hires)");
     printf("\n-i : IP address of the VOXL to stream the object detected RGB image");
     printf("\n\t : -i 0 to disable streaming");
     printf("\n-m : Deep learning model filename (Default: /bin/dnn/mobilenet_v1_ssd_coco_labels.tflite)");
@@ -209,10 +223,11 @@ int main(int argc, char **argv)
     char        dnnModelFile[256]  = "/usr/bin/dnn/mobilenet_v1_ssd_coco_labels.tflite";
     char        dnnLabelsFile[256] = "/usr/bin/dnn/mobilenet_v1_ssd_coco_labels.txt";
     int         numFramesDump      = 0;
+    int         camera             = 0;
 
     TFLiteInitData initData;
 
-    status = ParseArgs(argc, argv, &numFramesDump, &ipAddress[0], &dnnModelFile[0], &dnnLabelsFile[0]);
+    status = ParseArgs(argc, argv, &numFramesDump, &ipAddress[0], &dnnModelFile[0], &dnnLabelsFile[0], &camera);
 
     if (status != 0)
     {
@@ -226,6 +241,7 @@ int main(int argc, char **argv)
         initData.pDnnModelFile = &dnnModelFile[0];
         initData.pLabelsFile   = &dnnLabelsFile[0];
         initData.pIPAddress    = &ipAddress[0];
+        initData.camera        = camera;
 
         if (ipAddress[0] == '0')
         {

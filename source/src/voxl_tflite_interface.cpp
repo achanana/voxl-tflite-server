@@ -293,6 +293,7 @@ void TFliteMobileNet(void* pData)
     cv::Mat resizedImage                     = cv::Mat();
     TFliteThreadData* pThreadData            = (TFliteThreadData*)pData;
     TcpServer* pTcpServer                    = pThreadData->pTcpServer;
+    int cam                                  = pThreadData->camera;
     ExternalInterface* pExternalInterface    = NULL;
     ExternalInterfaceData initData;
 
@@ -476,12 +477,15 @@ void TFliteMobileNet(void* pData)
         //     printf("EMPTY FRAME?\n");
         //     continue;
         // }
-        cv::Mat yuv(imageHeight, imageWidth, CV_8UC1, (uchar*)pImagePixels);
-        cv::Mat in[] = {yuv, yuv, yuv};
-        cv::merge(in, 3, *pRgbImage[g_sendTcpInsertdx]);
-
-        // cv::cvtColor(yuv, *pRgbImage[g_sendTcpInsertdx], CV_GRAY2RGB, 3);
-        // cv::applyColorMap(yuv, *pRgbImage[g_sendTcpInsertdx], cv::COLORMAP_JET);
+        if (cam == 0){
+            cv::Mat yuv(imageHeight + imageHeight/2, imageWidth, CV_8UC1, (uchar*)pImagePixels);
+            cv::cvtColor(yuv, *pRgbImage[g_sendTcpInsertdx], CV_YUV2RGB_NV21);
+        }
+        else if (cam == 1){
+            cv::Mat yuv(imageHeight, imageWidth, CV_8UC1, (uchar*)pImagePixels);
+            cv::Mat in[] = {yuv, yuv, yuv};
+            cv::merge(in, 3, *pRgbImage[g_sendTcpInsertdx]);
+        }
 
         cv::resize(*pRgbImage[g_sendTcpInsertdx],
                    resizedImage,

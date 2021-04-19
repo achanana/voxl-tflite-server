@@ -51,6 +51,7 @@ struct TFLiteInitData
     char*      pIPAddress;      ///< Ip address
     char*      pDnnModelFile;   ///< Dnn model
     char*      pLabelsFile;     ///< Dnn labels file
+    int        camera;          ///< Camera we want to use - 0 for hires, 1 for tracking
 };
 
 //------------------------------------------------------------------------------------------------------------------------------

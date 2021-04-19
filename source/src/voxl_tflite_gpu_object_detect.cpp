@@ -191,6 +191,7 @@ Status TFliteModelExecute::Initialize(TFLiteInitData* pInitData)
     m_tfliteThreadData.pMsgQueue     = &m_tfliteMsgQueue;
     m_tfliteMsgQueue.queueInsertIdx  = 0;
     m_pInputPipeInterface            = NULL;
+    m_tfliteThreadData.camera        = pInitData->camera;
 
     // Start the thread that will run the tensorflow lite model to detect objects in the camera frames. This thread wont
     // stop issuing requests to the camera module until we terminate the program with Ctrl+C
@@ -240,7 +241,12 @@ Status TFliteModelExecute::Initialize(TFLiteInitData* pInitData)
             // pthread_mutex_unlock(&m_tfliteThreadData.mutex);
 
             inputData.ImageReceivedCallback = PipeImageDataCb;
-            inputData.pipeName              = "/run/mpa/tracking/"; ///@todo should not be hardcoded
+            if (pInitData->camera == 0){
+                inputData.pipeName = "/run/mpa/hires_preview/";
+            }
+            else {
+                inputData.pipeName = "/run/mpa/tracking/";
+            }
 
             m_pInputPipeInterface = CameraNamedPipe::Create();
 
