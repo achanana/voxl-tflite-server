@@ -49,14 +49,7 @@ Modified by ModalAI to run the object detection model on live camera frames
 void* ThreadMobileNet(void* data);
 void* ThreadTflitePydnet(void* data);
 void* ThreadSendImageData(void* data);
-typedef struct detectedData
-{
-    float* classes;
-    int   top;    
-    int   left;
-    int   width; 
-    int   height; 
-} detectedData;
+
 
 namespace tflite
 {
@@ -436,7 +429,6 @@ void TFliteMobileNet(void* pData)
     uint32_t totalYuvRgbTimemsecs = 0;
     uint32_t totalGpuExecutionTimemsecs = 0;
     uint32_t numFrames = 0;
-    std::vector<detectedData> prev_detections;
 
     gettimeofday(&begin_time, nullptr);
 
@@ -487,17 +479,16 @@ void TFliteMobileNet(void* pData)
         //     printf("EMPTY FRAME?\n");
         //     continue;
         // }
-        if (cam == 0){
-            cv::Mat yuv(imageHeight + imageHeight/2, imageWidth, CV_8UC1, (uchar*)pImagePixels);
-            cv::cvtColor(yuv, *pRgbImage[g_sendTcpInsertdx], CV_YUV2RGB_NV21);
-        }
-        else if (cam == 1){
-            cv::Mat yuv(imageHeight, imageWidth, CV_8UC1, (uchar*)pImagePixels);
-            cv::Mat in[] = {yuv, yuv, yuv};
-            cv::merge(in, 3, *pRgbImage[g_sendTcpInsertdx]);
-        }
         if (skip == 0 || numFrames % skip == 0){
-            prev_detections.clear();
+            if (cam == 0){
+                cv::Mat yuv(imageHeight + imageHeight/2, imageWidth, CV_8UC1, (uchar*)pImagePixels);
+                cv::cvtColor(yuv, *pRgbImage[g_sendTcpInsertdx], CV_YUV2RGB_NV21);
+            }
+            else if (cam == 1){
+                cv::Mat yuv(imageHeight, imageWidth, CV_8UC1, (uchar*)pImagePixels);
+                cv::Mat in[] = {yuv, yuv, yuv};
+                cv::merge(in, 3, *pRgbImage[g_sendTcpInsertdx]);
+            }
             cv::resize(*pRgbImage[g_sendTcpInsertdx],
                    resizedImage,
                    cv::Size(modelImageWidth, modelImageHeight),
@@ -607,9 +598,7 @@ void TFliteMobileNet(void* pData)
                     int height = bottom - top;
                     int width  = right - left;
 
-                    detectedData holder = {(float*)detected_classes, top, left, width, height};
-                    prev_detections.push_back(holder);
-
+                  
                     cv::Rect rect(left, top, width, height);
                     cv::Point pt(left, top);
 
@@ -626,23 +615,6 @@ void TFliteMobileNet(void* pData)
                     }
     #endif // FRAME_DUMP
                 }
-            }
-        }
-        else {
-            std::vector<string> labels;
-            size_t label_count;
-
-            if (ReadLabelsFile(s->labels_file_name, &labels, &label_count) != kTfLiteOk)
-            {
-                exit(-1);
-            }
-            for (unsigned int i=0; i < prev_detections.size(); i++){
-                detectedData hold = prev_detections[i];
-                cv::Rect rect(hold.left, hold.top, hold.width, hold.height);
-                cv::Point pt(hold.left, hold.top);
-                cv::rectangle(*pRgbImage[g_sendTcpInsertdx], rect, cv::Scalar(0, 200, 0), 7);
-                cv::putText(*pRgbImage[g_sendTcpInsertdx],
-                            labels[hold.classes[i]], pt, cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255, 0, 0), 2);
             }
         }
 
