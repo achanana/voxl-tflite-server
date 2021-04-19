@@ -73,7 +73,8 @@ typedef struct TFliteThreadData
     pthread_t               threadSendImg;  ///< Send Image Thread handle
     std::mutex              condMutex;      ///< Mutex
     std::condition_variable condVar;        ///< Condition variable
-    int                     camera;         ///< Camera indicator - 0 for hires, 1 for tracking 
+    int                     camera;         ///< Camera indicator - 0 for hires, 1 for tracking
+    int                     frame_skip;     ///< Number of frames to skip before running model 
 } TFliteThreadData;
 
 #endif // VOXL_TFLITE_HEADER

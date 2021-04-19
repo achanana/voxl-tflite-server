@@ -92,7 +92,8 @@ int ParseArgs(int         argc,
               char*       pIPAddress,
               char*       pDnnModelFile,
               char*       pLabelsFile,
-              int*        pCamera)
+              int*        pCamera,
+              int*        pFrameSkip)
 {
     static struct option LongOptions[] =
     {
@@ -109,10 +110,18 @@ int ParseArgs(int         argc,
     int status           = 0;
     int option;
 
-    while ((status == 0) && (option = getopt_long_only (argc, pArgv, "c:d:i:m:l:h", &LongOptions[0], &optionIndex)) != -1)
+    while ((status == 0) && (option = getopt_long_only (argc, pArgv, "f:c:d:i:m:l:h", &LongOptions[0], &optionIndex)) != -1)
     {
         switch(option)
         {
+            case 'f':
+                numInputsScanned = sscanf(optarg, "%d", pFrameSkip);
+                if (ErrorCheck(numInputsScanned, LongOptions[optionIndex].name) != 0)
+                {
+                    printf("\nNo frame skip parameter specified");
+                    status = -EINVAL;
+                }
+                break;
             case 'c':
                 numInputsScanned = sscanf(optarg, "%d", pCamera);
                 if (ErrorCheck(numInputsScanned, LongOptions[optionIndex].name) != 0)
@@ -203,6 +212,7 @@ void PrintHelpMessage()
 {
     printf("\n\nCommand line arguments are as follows:\n");
     printf("\n-c : Camera to use for object detection: 0 for hires, 1 for tracking. (Default: hires)");
+    printf("\n-f : Number of frames to skip before running the model. (Default: 0)");
     printf("\n-i : IP address of the VOXL to stream the object detected RGB image");
     printf("\n\t : -i 0 to disable streaming");
     printf("\n-m : Deep learning model filename (Default: /bin/dnn/mobilenet_v1_ssd_coco_labels.tflite)");
@@ -224,10 +234,11 @@ int main(int argc, char **argv)
     char        dnnLabelsFile[256] = "/usr/bin/dnn/mobilenet_v1_ssd_coco_labels.txt";
     int         numFramesDump      = 0;
     int         camera             = 0;
+    int         frame_skip         = 0;
 
     TFLiteInitData initData;
 
-    status = ParseArgs(argc, argv, &numFramesDump, &ipAddress[0], &dnnModelFile[0], &dnnLabelsFile[0], &camera);
+    status = ParseArgs(argc, argv, &numFramesDump, &ipAddress[0], &dnnModelFile[0], &dnnLabelsFile[0], &camera, &frame_skip);
 
     if (status != 0)
     {
@@ -242,6 +253,7 @@ int main(int argc, char **argv)
         initData.pLabelsFile   = &dnnLabelsFile[0];
         initData.pIPAddress    = &ipAddress[0];
         initData.camera        = camera;
+        initData.frame_skip    = frame_skip;
 
         if (ipAddress[0] == '0')
         {

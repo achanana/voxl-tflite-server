@@ -192,6 +192,7 @@ Status TFliteModelExecute::Initialize(TFLiteInitData* pInitData)
     m_tfliteMsgQueue.queueInsertIdx  = 0;
     m_pInputPipeInterface            = NULL;
     m_tfliteThreadData.camera        = pInitData->camera;
+    m_tfliteThreadData.frame_skip    = pInitData->frame_skip;
 
     // Start the thread that will run the tensorflow lite model to detect objects in the camera frames. This thread wont
     // stop issuing requests to the camera module until we terminate the program with Ctrl+C

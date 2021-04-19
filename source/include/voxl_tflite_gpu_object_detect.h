@@ -52,6 +52,7 @@ struct TFLiteInitData
     char*      pDnnModelFile;   ///< Dnn model
     char*      pLabelsFile;     ///< Dnn labels file
     int        camera;          ///< Camera we want to use - 0 for hires, 1 for tracking
+    int        frame_skip;      ///< Number of frames to skip before running model
 };
 
 //------------------------------------------------------------------------------------------------------------------------------

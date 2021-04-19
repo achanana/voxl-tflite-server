@@ -49,6 +49,14 @@ Modified by ModalAI to run the object detection model on live camera frames
 void* ThreadMobileNet(void* data);
 void* ThreadTflitePydnet(void* data);
 void* ThreadSendImageData(void* data);
+typedef struct detectedData
+{
+    float* classes;
+    int   top;    
+    int   left;
+    int   width; 
+    int   height; 
+} detectedData;
 
 namespace tflite
 {
@@ -294,6 +302,7 @@ void TFliteMobileNet(void* pData)
     TFliteThreadData* pThreadData            = (TFliteThreadData*)pData;
     TcpServer* pTcpServer                    = pThreadData->pTcpServer;
     int cam                                  = pThreadData->camera;
+    int skip                                 = pThreadData->frame_skip;
     ExternalInterface* pExternalInterface    = NULL;
     ExternalInterfaceData initData;
 
@@ -427,6 +436,7 @@ void TFliteMobileNet(void* pData)
     uint32_t totalYuvRgbTimemsecs = 0;
     uint32_t totalGpuExecutionTimemsecs = 0;
     uint32_t numFrames = 0;
+    std::vector<detectedData> prev_detections;
 
     gettimeofday(&begin_time, nullptr);
 
@@ -486,131 +496,153 @@ void TFliteMobileNet(void* pData)
             cv::Mat in[] = {yuv, yuv, yuv};
             cv::merge(in, 3, *pRgbImage[g_sendTcpInsertdx]);
         }
-
-        cv::resize(*pRgbImage[g_sendTcpInsertdx],
+        if (skip == 0 || numFrames % skip == 0){
+            prev_detections.clear();
+            cv::resize(*pRgbImage[g_sendTcpInsertdx],
                    resizedImage,
                    cv::Size(modelImageWidth, modelImageHeight),
                    0,
                    0,
                    CV_INTER_LINEAR);
-        gettimeofday(&yuvrgb_stop_time, nullptr);
+            gettimeofday(&yuvrgb_stop_time, nullptr);
 
 
-        totalYuvRgbTimemsecs += (get_us(yuvrgb_stop_time) - get_us(yuvrgb_start_time)) / 1000;
+            totalYuvRgbTimemsecs += (get_us(yuvrgb_stop_time) - get_us(yuvrgb_start_time)) / 1000;
 
-        uint8_t*               pImageData = (uint8_t*)resizedImage.data;
-        const std::vector<int> inputs     = interpreter->inputs();
-        const std::vector<int> outputs    = interpreter->outputs();
+            uint8_t*               pImageData = (uint8_t*)resizedImage.data;
+            const std::vector<int> inputs     = interpreter->inputs();
+            const std::vector<int> outputs    = interpreter->outputs();
 
-        // Get input dimension from the input tensor metadata assuming one input only
+            // Get input dimension from the input tensor metadata assuming one input only
 
-        int input = interpreter->inputs()[0];
+            int input = interpreter->inputs()[0];
 
-        if (s->verbose)
-        {
-            // PrintInterpreterState(interpreter.get());
-        }
-
-        gettimeofday(&resize_start_time, nullptr);
-
-        switch (interpreter->tensor(input)->type)
-        {
-            case kTfLiteFloat32:
-            fprintf(stderr, "\n------kTfLiteFloat32!!");
-              s->input_floating = true;
-              resize<float>(interpreter->typed_tensor<float>(input), pImageData,
-                            modelImageHeight, modelImageWidth, imageChannels, modelImageHeight,
-                            modelImageWidth, modelImageChannels, s);
-                          
-              break;
-
-            case kTfLiteUInt8:
-            fprintf(stderr, "\n------kTfLiteUInt8!!");
-              resize<uint8_t>(interpreter->typed_tensor<uint8_t>(input), pImageData,
-                              modelImageHeight, modelImageWidth, imageChannels, modelImageHeight,
-                              modelImageWidth, modelImageChannels, s);
-              break;
-
-            default:
-              LOG(FATAL) << "cannot handle input type "
-                        << interpreter->tensor(input)->type << " yet";
-              exit(-1);
-        }
-
-        gettimeofday(&resize_stop_time, nullptr);
-
-        totalResizeTimemsecs += (get_us(resize_stop_time) - get_us(resize_start_time)) / 1000;
-
-        gettimeofday(&start_time, nullptr);
-
-        for (int i = 0; i < s->loop_count; i++)
-        {
-            if (interpreter->Invoke() != kTfLiteOk)
+            if (s->verbose)
             {
-                LOG(FATAL) << "Failed to invoke tflite!\n";
+                // PrintInterpreterState(interpreter.get());
+            }
+
+            gettimeofday(&resize_start_time, nullptr);
+
+            switch (interpreter->tensor(input)->type)
+            {
+                case kTfLiteFloat32:
+                fprintf(stderr, "\n------kTfLiteFloat32!!");
+                s->input_floating = true;
+                resize<float>(interpreter->typed_tensor<float>(input), pImageData,
+                                modelImageHeight, modelImageWidth, imageChannels, modelImageHeight,
+                                modelImageWidth, modelImageChannels, s);
+                            
+                break;
+
+                case kTfLiteUInt8:
+                fprintf(stderr, "\n------kTfLiteUInt8!!");
+                resize<uint8_t>(interpreter->typed_tensor<uint8_t>(input), pImageData,
+                                modelImageHeight, modelImageWidth, imageChannels, modelImageHeight,
+                                modelImageWidth, modelImageChannels, s);
+                break;
+
+                default:
+                LOG(FATAL) << "cannot handle input type "
+                            << interpreter->tensor(input)->type << " yet";
+                exit(-1);
+            }
+
+            gettimeofday(&resize_stop_time, nullptr);
+
+            totalResizeTimemsecs += (get_us(resize_stop_time) - get_us(resize_start_time)) / 1000;
+
+            gettimeofday(&start_time, nullptr);
+
+            for (int i = 0; i < s->loop_count; i++)
+            {
+                if (interpreter->Invoke() != kTfLiteOk)
+                {
+                    LOG(FATAL) << "Failed to invoke tflite!\n";
+                }
+            }
+
+            gettimeofday(&stop_time, nullptr);
+            LOG(INFO) << "GPU invoked \n";
+            LOG(INFO) << "average GPU model execution time: "
+                    << (get_us(stop_time) - get_us(start_time)) / (s->loop_count * 1000)
+                    << " ms \n";
+
+            totalGpuExecutionTimemsecs += (get_us(stop_time) - get_us(start_time)) / 1000;
+
+            // https://www.tensorflow.org/lite/models/object_detection/overview#starter_model
+            TfLiteTensor* output_locations    = interpreter->tensor(interpreter->outputs()[0]);
+            TfLiteTensor* output_classes      = interpreter->tensor(interpreter->outputs()[1]);
+            TfLiteTensor* output_scores       = interpreter->tensor(interpreter->outputs()[2]);
+            TfLiteTensor* output_detections   = interpreter->tensor(interpreter->outputs()[3]);
+            const float*  detected_locations  = TensorData<float>(output_locations, 0);
+            const float*  detected_classes    = TensorData<float>(output_classes, 0);
+            const float*  detected_scores     = TensorData<float>(output_scores, 0);
+            const int     detected_numclasses = (int)(*TensorData<float>(output_detections, 0));
+
+            std::vector<string> labels;
+            size_t label_count;
+
+            if (ReadLabelsFile(s->labels_file_name, &labels, &label_count) != kTfLiteOk)
+            {
+                exit(-1);
+            }
+
+            LOG(INFO) << "Frame: " << frameNumber << ".... Detected Num Classes is: " << detected_numclasses << "\n";
+
+            for (int i = 0; i < detected_numclasses; i++)
+            {
+                const float score  = detected_scores[i];
+                const int   top    = detected_locations[4 * i + 0] * imageHeight;
+                const int   left   = detected_locations[4 * i + 1] * imageWidth;
+                const int   bottom = detected_locations[4 * i + 2] * imageHeight;
+                const int   right  = detected_locations[4 * i + 3] * imageWidth;
+
+                // Check for object detection confidence of 60% or more
+                if (score > 0.6f)
+                {
+                    LOG(INFO) << score * 100.0 << "\t" << " Class id:  " << labels[detected_classes[i]]
+                            << "\t" << "[ " << left << ", " << top << ", " << right-left << ", " << bottom-top << " ]" << "\n";
+
+                    int height = bottom - top;
+                    int width  = right - left;
+
+                    detectedData holder = {(float*)detected_classes, top, left, width, height};
+                    prev_detections.push_back(holder);
+
+                    cv::Rect rect(left, top, width, height);
+                    cv::Point pt(left, top);
+
+                    cv::rectangle(*pRgbImage[g_sendTcpInsertdx], rect, cv::Scalar(0, 200, 0), 7);
+                    cv::putText(*pRgbImage[g_sendTcpInsertdx],
+                                labels[detected_classes[i]], pt, cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255, 0, 0), 2);
+                
+
+    #ifdef FRAME_DUMP
+                    char filename[128];
+                    {
+                        sprintf(filename, "/data/misc/camera/frame_%d.bmp", frameNumber);
+                        cv::imwrite(filename, *pRgbImage[g_sendTcpInsertdx]);
+                    }
+    #endif // FRAME_DUMP
+                }
             }
         }
+        else {
+            std::vector<string> labels;
+            size_t label_count;
 
-        gettimeofday(&stop_time, nullptr);
-        LOG(INFO) << "GPU invoked \n";
-        LOG(INFO) << "average GPU model execution time: "
-                  << (get_us(stop_time) - get_us(start_time)) / (s->loop_count * 1000)
-                  << " ms \n";
-
-        totalGpuExecutionTimemsecs += (get_us(stop_time) - get_us(start_time)) / 1000;
-
-        // https://www.tensorflow.org/lite/models/object_detection/overview#starter_model
-        TfLiteTensor* output_locations    = interpreter->tensor(interpreter->outputs()[0]);
-        TfLiteTensor* output_classes      = interpreter->tensor(interpreter->outputs()[1]);
-        TfLiteTensor* output_scores       = interpreter->tensor(interpreter->outputs()[2]);
-        TfLiteTensor* output_detections   = interpreter->tensor(interpreter->outputs()[3]);
-        const float*  detected_locations  = TensorData<float>(output_locations, 0);
-        const float*  detected_classes    = TensorData<float>(output_classes, 0);
-        const float*  detected_scores     = TensorData<float>(output_scores, 0);
-        const int     detected_numclasses = (int)(*TensorData<float>(output_detections, 0));
-
-        std::vector<string> labels;
-        size_t label_count;
-
-        if (ReadLabelsFile(s->labels_file_name, &labels, &label_count) != kTfLiteOk)
-        {
-            exit(-1);
-        }
-
-        LOG(INFO) << "Frame: " << frameNumber << ".... Detected Num Classes is: " << detected_numclasses << "\n";
-
-        for (int i = 0; i < detected_numclasses; i++)
-        {
-            const float score  = detected_scores[i];
-            const int   top    = detected_locations[4 * i + 0] * imageHeight;
-            const int   left   = detected_locations[4 * i + 1] * imageWidth;
-            const int   bottom = detected_locations[4 * i + 2] * imageHeight;
-            const int   right  = detected_locations[4 * i + 3] * imageWidth;
-
-            // Check for object detection confidence of 60% or more
-            if (score > 0.6f)
+            if (ReadLabelsFile(s->labels_file_name, &labels, &label_count) != kTfLiteOk)
             {
-                LOG(INFO) << score * 100.0 << "\t" << " Class id:  " << labels[detected_classes[i]]
-                          << "\t" << "[ " << left << ", " << top << ", " << right-left << ", " << bottom-top << " ]" << "\n";
-
-                int height = bottom - top;
-                int width  = right - left;
-
-                cv::Rect rect(left, top, width, height);
-                cv::Point pt(left, top);
-
+                exit(-1);
+            }
+            for (unsigned int i=0; i < prev_detections.size(); i++){
+                detectedData hold = prev_detections[i];
+                cv::Rect rect(hold.left, hold.top, hold.width, hold.height);
+                cv::Point pt(hold.left, hold.top);
                 cv::rectangle(*pRgbImage[g_sendTcpInsertdx], rect, cv::Scalar(0, 200, 0), 7);
                 cv::putText(*pRgbImage[g_sendTcpInsertdx],
-                            labels[detected_classes[i]], pt, cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255, 0, 0), 2);
-            
-
-#ifdef FRAME_DUMP
-                char filename[128];
-                {
-                    sprintf(filename, "/data/misc/camera/frame_%d.bmp", frameNumber);
-                    cv::imwrite(filename, *pRgbImage[g_sendTcpInsertdx]);
-                }
-#endif // FRAME_DUMP
+                            labels[hold.classes[i]], pt, cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255, 0, 0), 2);
             }
         }
 
