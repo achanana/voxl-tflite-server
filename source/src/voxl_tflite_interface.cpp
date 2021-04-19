@@ -477,7 +477,12 @@ void TFliteMobileNet(void* pData)
         //     continue;
         // }
         cv::Mat yuv(imageHeight, imageWidth, CV_8UC1, (uchar*)pImagePixels);
-        cv::cvtColor(yuv, *pRgbImage[g_sendTcpInsertdx], CV_GRAY2RGB);
+        cv::Mat in[] = {yuv, yuv, yuv};
+        cv::merge(in, 3, *pRgbImage[g_sendTcpInsertdx]);
+
+        // cv::cvtColor(yuv, *pRgbImage[g_sendTcpInsertdx], CV_GRAY2RGB, 3);
+        // cv::applyColorMap(yuv, *pRgbImage[g_sendTcpInsertdx], cv::COLORMAP_JET);
+
         cv::resize(*pRgbImage[g_sendTcpInsertdx],
                    resizedImage,
                    cv::Size(modelImageWidth, modelImageHeight),
