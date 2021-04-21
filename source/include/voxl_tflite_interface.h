@@ -75,6 +75,7 @@ typedef struct TFliteThreadData
     std::condition_variable condVar;        ///< Condition variable
     int                     camera;         ///< Camera indicator - 0 for hires, 1 for tracking
     int                     frame_skip;     ///< Number of frames to skip before running model 
+    bool                    verbose;        ///< Verbose debug output
 } TFliteThreadData;
 
 #endif // VOXL_TFLITE_HEADER

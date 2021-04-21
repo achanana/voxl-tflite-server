@@ -45,6 +45,7 @@ Modified by ModalAI to run the object detection model on live camera frames
 #define LOG(x) std::cout
 // #define FRAME_DUMP
 #define STATS_DUMP
+#define MPA_TFLITE_PATH (MODAL_PIPE_DEFAULT_BASE_DIR "tflite/")
 
 void* ThreadMobileNet(void* data);
 void* ThreadTflitePydnet(void* data);
@@ -296,8 +297,7 @@ void TFliteMobileNet(void* pData)
     TcpServer* pTcpServer                    = pThreadData->pTcpServer;
     int cam                                  = pThreadData->camera;
     int skip                                 = pThreadData->frame_skip;
-    ExternalInterface* pExternalInterface    = NULL;
-    ExternalInterfaceData initData;
+    bool verbose                             = pThreadData->verbose;
 
     if (pTcpServer != NULL)
     {
@@ -309,12 +309,8 @@ void TFliteMobileNet(void* pData)
     else
     {
         pRgbImage[0] = new cv::Mat();
-
-        memset(&initData, 0, sizeof(ExternalInterfaceData));
-        ///<@todo get this from the thread data
-        initData.outputMask = RgbOutputMask;
-
-        pExternalInterface = ExternalInterface::Create(&initData);
+        pipe_server_set_default_pipe_size(OUTPUT_ID_RGB_IMAGE, 16*1024*1024);
+        pipe_server_init_channel(OUTPUT_ID_RGB_IMAGE, MPA_TFLITE_PATH, 0);
     }
 
     s = new tflite::label_image::Settings;
@@ -452,20 +448,21 @@ void TFliteMobileNet(void* pData)
 
         // Coming here means we have a frame to run through the DNN model
         numFrames++;
-
         TFLiteMessage* pTFLiteMessage           = &pThreadData->pMsgQueue->queue[queueProcessIdx];
-        fprintf(stderr, "\n------Popping index %d frame %d ...... Queue size: %d",
+        if (verbose){
+            fprintf(stderr, "\n------Popping index %d frame %d ...... Queue size: %d",
                 queueProcessIdx, pTFLiteMessage->pMetadata->frame_id,
                 abs(pThreadData->pMsgQueue->queueInsertIdx - queueProcessIdx));
-
+        }
+        
         ///<@todo Create a wrapper for this structure
-        camera_image_metadata_t* pImageMetadata = pTFLiteMessage->pMetadata;
+        camera_image_metadata_t pImageMetadata = *pTFLiteMessage->pMetadata;
         uint8_t*                 pImagePixels   = pTFLiteMessage->pImagePixels;
 
-        int imageWidth    = pImageMetadata->width;
-        int imageHeight   = pImageMetadata->height;
+        int imageWidth    = pImageMetadata.width;
+        int imageHeight   = pImageMetadata.height;
         int imageChannels = 3;
-        int frameNumber   = pImageMetadata->frame_id;
+        int frameNumber   = pImageMetadata.frame_id;
 
         gettimeofday(&yuvrgb_start_time, nullptr);
         ///<@todo camera server needs to send packed frames
@@ -518,7 +515,9 @@ void TFliteMobileNet(void* pData)
             switch (interpreter->tensor(input)->type)
             {
                 case kTfLiteFloat32:
+                if (verbose){
                 fprintf(stderr, "\n------kTfLiteFloat32!!");
+                }
                 s->input_floating = true;
                 resize<float>(interpreter->typed_tensor<float>(input), pImageData,
                                 modelImageHeight, modelImageWidth, imageChannels, modelImageHeight,
@@ -527,7 +526,9 @@ void TFliteMobileNet(void* pData)
                 break;
 
                 case kTfLiteUInt8:
-                fprintf(stderr, "\n------kTfLiteUInt8!!");
+                if (verbose){
+                    fprintf(stderr, "\n------kTfLiteUInt8!!");
+                }
                 resize<uint8_t>(interpreter->typed_tensor<uint8_t>(input), pImageData,
                                 modelImageHeight, modelImageWidth, imageChannels, modelImageHeight,
                                 modelImageWidth, modelImageChannels, s);
@@ -554,11 +555,13 @@ void TFliteMobileNet(void* pData)
             }
 
             gettimeofday(&stop_time, nullptr);
-            LOG(INFO) << "GPU invoked \n";
-            LOG(INFO) << "average GPU model execution time: "
+            if (verbose){
+                LOG(INFO) << "GPU invoked \n";
+                LOG(INFO) << "average GPU model execution time: "
                     << (get_us(stop_time) - get_us(start_time)) / (s->loop_count * 1000)
                     << " ms \n";
-
+            }
+            
             totalGpuExecutionTimemsecs += (get_us(stop_time) - get_us(start_time)) / 1000;
 
             // https://www.tensorflow.org/lite/models/object_detection/overview#starter_model
@@ -578,8 +581,9 @@ void TFliteMobileNet(void* pData)
             {
                 exit(-1);
             }
-
-            LOG(INFO) << "Frame: " << frameNumber << ".... Detected Num Classes is: " << detected_numclasses << "\n";
+            if (verbose){
+                LOG(INFO) << "Frame: " << frameNumber << ".... Detected Num Classes is: " << detected_numclasses << "\n";
+            }
 
             for (int i = 0; i < detected_numclasses; i++)
             {
@@ -624,14 +628,15 @@ void TFliteMobileNet(void* pData)
         {
             ///<@todo Handle different format types
             // pImageMetadata->bits_per_pixel = 24;
-            pImageMetadata->format         = IMAGE_FORMAT_RGB; ///<@todo Fix this to the correct format
-            pImageMetadata->size_bytes     = (imageHeight * imageWidth * 3);
-            pImageMetadata->stride         = (modelImageWidth * 3);
-
-            pExternalInterface->BroadcastFrame(OUTPUT_ID_RGB_IMAGE, (char*)pImageMetadata, sizeof(camera_image_metadata_t));
-            pExternalInterface->BroadcastFrame(OUTPUT_ID_RGB_IMAGE,
-                                               (char*)pRgbImage[g_sendTcpInsertdx]->data,
-                                               imageWidth * imageHeight * 3);
+            pImageMetadata.format         = IMAGE_FORMAT_RGB; ///<@todo Fix this to the correct format
+            pImageMetadata.size_bytes     = (imageHeight * imageWidth * 3);
+            pImageMetadata.stride         = (modelImageWidth * 3);
+            // int pipe_server_send_camera_frame_to_channel(int ch, camera_image_metadata_t meta, char* data);
+            pipe_server_send_camera_frame_to_channel(OUTPUT_ID_RGB_IMAGE, pImageMetadata, (char*)pRgbImage[g_sendTcpInsertdx]->data);
+            // pExternalInterface->BroadcastFrame(OUTPUT_ID_RGB_IMAGE, (char*)pImageMetadata, sizeof(camera_image_metadata_t));
+            // pExternalInterface->BroadcastFrame(OUTPUT_ID_RGB_IMAGE,
+            //                                    (char*)pRgbImage[g_sendTcpInsertdx]->data,
+            //                                    imageWidth * imageHeight * 3);
         }
 
          queueProcessIdx = ((queueProcessIdx + 1) % MAX_MESSAGES);
@@ -660,6 +665,7 @@ void TFliteMobileNet(void* pData)
             pRgbImage[0] = NULL;
         }
     }
+    pipe_server_close_all();
 }
   // namespace label_image
   // namespace tflite
@@ -681,8 +687,6 @@ void TflitePydnet(void* pData)
     cv::Mat*  pRgbImage[MAX_EXT_MESSAGES];
     cv::Mat resizedImage                     = cv::Mat();
     TcpServer* pTcpServer                    = pThreadData->pTcpServer;
-    ExternalInterface* pExternalInterface    = NULL;
-    ExternalInterfaceData initData;
 
     if (pTcpServer != NULL)
     {
@@ -694,10 +698,8 @@ void TflitePydnet(void* pData)
     else
     {
         pRgbImage[0] = new cv::Mat();
-        memset(&initData, 0, sizeof(ExternalInterfaceData));
-        ///<@todo get this from the thread data
-        initData.outputMask = RgbOutputMask;
-        pExternalInterface = ExternalInterface::Create(&initData);
+        pipe_server_set_default_pipe_size(OUTPUT_ID_RGB_IMAGE, 16*1024*1024);
+        pipe_server_init_channel(OUTPUT_ID_RGB_IMAGE, MPA_TFLITE_PATH, 0);
     }
 
     s = new tflite::label_image::Settings;
@@ -865,11 +867,11 @@ void TflitePydnet(void* pData)
                 abs(pThreadData->pMsgQueue->queueInsertIdx - queueProcessIdx));
 
         ///<@todo Create a wrapper for this structure
-        camera_image_metadata_t* pImageMetadata = pTFLiteMessage->pMetadata;
+        camera_image_metadata_t pImageMetadata = *pTFLiteMessage->pMetadata;
         uint8_t*                 pImagePixels   = pTFLiteMessage->pImagePixels;
 
-        int imageWidth    = pImageMetadata->width;
-        int imageHeight   = pImageMetadata->height;
+        int imageWidth    = pImageMetadata.width;
+        int imageHeight   = pImageMetadata.height;
         int imageChannels = 3;
         cv::Mat colored_img;
 
@@ -952,13 +954,14 @@ void TflitePydnet(void* pData)
 
         if (pTcpServer == NULL) 
         {
-            pImageMetadata->format         = IMAGE_FORMAT_RGB;   
-            pImageMetadata->size_bytes     = (imageWidth * imageHeight * 3); 
-            pImageMetadata->stride         = (imageWidth * 3); 
-            pExternalInterface->BroadcastFrame(OUTPUT_ID_RGB_IMAGE, (char*)pImageMetadata, sizeof(camera_image_metadata_t));
-            pExternalInterface->BroadcastFrame(OUTPUT_ID_RGB_IMAGE,
-                                        (char*)pRgbImage[g_sendTcpInsertdx]->data,
-                                        pImageMetadata->size_bytes);
+            pImageMetadata.format         = IMAGE_FORMAT_RGB;   
+            pImageMetadata.size_bytes     = (imageWidth * imageHeight * 3); 
+            pImageMetadata.stride         = (imageWidth * 3); 
+            pipe_server_send_camera_frame_to_channel(OUTPUT_ID_RGB_IMAGE, pImageMetadata, (char*)pRgbImage[g_sendTcpInsertdx]->data);
+            // pExternalInterface->BroadcastFrame(OUTPUT_ID_RGB_IMAGE, (char*)pImageMetadata, sizeof(camera_image_metadata_t));
+            // pExternalInterface->BroadcastFrame(OUTPUT_ID_RGB_IMAGE,
+            //                             (char*)pRgbImage[g_sendTcpInsertdx]->data,
+            //                             pImageMetadata->size_bytes);
         }
 
            queueProcessIdx = ((queueProcessIdx + 1) % MAX_MESSAGES);
@@ -989,6 +992,7 @@ void TflitePydnet(void* pData)
             pRgbImage[0] = NULL;
         }
     }
+    pipe_server_close_all();
 }  // namespace tflite
 }
 }

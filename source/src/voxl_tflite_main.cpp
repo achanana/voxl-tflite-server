@@ -93,7 +93,8 @@ int ParseArgs(int         argc,
               char*       pDnnModelFile,
               char*       pLabelsFile,
               int*        pCamera,
-              int*        pFrameSkip)
+              int*        pFrameSkip,
+              bool*       verbose)
 {
     static struct option LongOptions[] =
     {
@@ -121,6 +122,9 @@ int ParseArgs(int         argc,
                     printf("\nNo frame skip parameter specified");
                     status = -EINVAL;
                 }
+                break;
+            case 'v':
+                *verbose = true;
                 break;
             case 'c':
                 numInputsScanned = sscanf(optarg, "%d", pCamera);
@@ -213,6 +217,7 @@ void PrintHelpMessage()
     printf("\n\nCommand line arguments are as follows:\n");
     printf("\n-c : Camera to use for object detection: 0 for hires, 1 for tracking. (Default: hires)");
     printf("\n-f : Number of frames to skip before running the model. (Default: 0)");
+    printf("\n-v : Verbose debug output (Default: Off)");
     printf("\n-i : IP address of the VOXL to stream the object detected RGB image");
     printf("\n\t : -i 0 to disable streaming");
     printf("\n-m : Deep learning model filename (Default: /bin/dnn/mobilenet_v1_ssd_coco_labels.tflite)");
@@ -235,10 +240,11 @@ int main(int argc, char **argv)
     int         numFramesDump      = 0;
     int         camera             = 0;
     int         frame_skip         = 0;
+    bool        verbose            = 0;
 
     TFLiteInitData initData;
 
-    status = ParseArgs(argc, argv, &numFramesDump, &ipAddress[0], &dnnModelFile[0], &dnnLabelsFile[0], &camera, &frame_skip);
+    status = ParseArgs(argc, argv, &numFramesDump, &ipAddress[0], &dnnModelFile[0], &dnnLabelsFile[0], &camera, &frame_skip, &verbose);
 
     if (status != 0)
     {
@@ -254,6 +260,7 @@ int main(int argc, char **argv)
         initData.pIPAddress    = &ipAddress[0];
         initData.camera        = camera;
         initData.frame_skip    = frame_skip;
+        initData.verbose       = verbose;
 
         if (ipAddress[0] == '0')
         {
