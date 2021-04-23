@@ -425,6 +425,8 @@ void TFliteMobileNet(void* pData)
     uint32_t totalYuvRgbTimemsecs = 0;
     uint32_t totalGpuExecutionTimemsecs = 0;
     uint32_t numFrames = 0;
+    camera_image_metadata_t pImageMetadata;
+    uint8_t* pImagePixels;
 
     gettimeofday(&begin_time, nullptr);
 
@@ -456,8 +458,8 @@ void TFliteMobileNet(void* pData)
         }
         
         ///<@todo Create a wrapper for this structure
-        camera_image_metadata_t pImageMetadata = *pTFLiteMessage->pMetadata;
-        uint8_t*                 pImagePixels   = pTFLiteMessage->pImagePixels;
+        pImageMetadata = *pTFLiteMessage->pMetadata;
+        pImagePixels   = pTFLiteMessage->pImagePixels;
 
         int imageWidth    = pImageMetadata.width;
         int imageHeight   = pImageMetadata.height;
@@ -465,17 +467,6 @@ void TFliteMobileNet(void* pData)
         int frameNumber   = pImageMetadata.frame_id;
 
         gettimeofday(&yuvrgb_start_time, nullptr);
-        ///<@todo camera server needs to send packed frames
-        // memcpy(pTempYuv, (uint8_t*)pBufferInfo->vaddr, imageWidth*imageHeight);
-        // memcpy(pTempYuv, pImagePixels, pImageMetadata->size_bytes);
-        // memcpy(pTempYuv+(imageWidth*imageHeight), (uint8_t*)pBufferInfo->craddr, imageWidth*imageHeight/2);
-
-        // RotateNV21(pRotatedYuv, (uint8_t*)pTempYuv, imageWidth, imageHeight, rotation);
-        // cv::Mat yuv(imageHeight + imageHeight/2, imageWidth, CV_8UC1, (uchar*)pRotatedYuv);
-        // if (pImagePixels == NULL){
-        //     printf("EMPTY FRAME?\n");
-        //     continue;
-        // }
         if (skip == 0 || numFrames % skip == 0){
             if (cam == 0){
                 cv::Mat yuv(imageHeight + imageHeight/2, imageWidth, CV_8UC1, (uchar*)pImagePixels);
@@ -622,21 +613,19 @@ void TFliteMobileNet(void* pData)
             }
         }
 
-        LOG(INFO) << "\n\n";
+        if (verbose){
+            LOG(INFO) << "\n\n";
+        }
         
         if (pTcpServer == NULL)
         {
             ///<@todo Handle different format types
-            // pImageMetadata->bits_per_pixel = 24;
             pImageMetadata.format         = IMAGE_FORMAT_RGB; ///<@todo Fix this to the correct format
             pImageMetadata.size_bytes     = (imageHeight * imageWidth * 3);
             pImageMetadata.stride         = (modelImageWidth * 3);
-            // int pipe_server_send_camera_frame_to_channel(int ch, camera_image_metadata_t meta, char* data);
-            pipe_server_send_camera_frame_to_channel(OUTPUT_ID_RGB_IMAGE, pImageMetadata, (char*)pRgbImage[g_sendTcpInsertdx]->data);
-            // pExternalInterface->BroadcastFrame(OUTPUT_ID_RGB_IMAGE, (char*)pImageMetadata, sizeof(camera_image_metadata_t));
-            // pExternalInterface->BroadcastFrame(OUTPUT_ID_RGB_IMAGE,
-            //                                    (char*)pRgbImage[g_sendTcpInsertdx]->data,
-            //                                    imageWidth * imageHeight * 3);
+            if( pRgbImage[g_sendTcpInsertdx]->data != NULL){
+                    pipe_server_send_camera_frame_to_channel(OUTPUT_ID_RGB_IMAGE, pImageMetadata, (char*)pRgbImage[g_sendTcpInsertdx]->data);
+            }
         }
 
          queueProcessIdx = ((queueProcessIdx + 1) % MAX_MESSAGES);
@@ -675,7 +664,6 @@ void TFliteMobileNet(void* pData)
 // -----------------------------------------------------------------------------------------------------------------------------
 void TflitePydnet(void* pData)
 {
-    //STOPS BEFORE ANY OF THIS...
     int modelImageHeight;
     int modelImageWidth;
     int modelImageChannels;

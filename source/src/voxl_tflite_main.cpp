@@ -111,7 +111,7 @@ int ParseArgs(int         argc,
     int status           = 0;
     int option;
 
-    while ((status == 0) && (option = getopt_long_only (argc, pArgv, "f:c:d:i:m:l:h", &LongOptions[0], &optionIndex)) != -1)
+    while ((status == 0) && (option = getopt_long_only (argc, pArgv, ":f:c:d:i:m:l:hv", &LongOptions[0], &optionIndex)) != -1)
     {
         switch(option)
         {
