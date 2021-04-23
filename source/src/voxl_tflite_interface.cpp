@@ -31,7 +31,6 @@ Modified by ModalAI to run the object detection model on live camera frames
 #include <vector>
 
 #include "debug_log.h"
-#include "external_interface.h"
 #include "memory.h"
 #include <modal_pipe.h>
 #include "bitmap_helpers.h"
@@ -587,8 +586,10 @@ void TFliteMobileNet(void* pData)
                 // Check for object detection confidence of 60% or more
                 if (score > 0.6f)
                 {
-                    LOG(INFO) << score * 100.0 << "\t" << " Class id:  " << labels[detected_classes[i]]
+                    if (verbose){
+                         LOG(INFO) << score * 100.0 << "\t" << " Class id:  " << labels[detected_classes[i]]
                             << "\t" << "[ " << left << ", " << top << ", " << right-left << ", " << bottom-top << " ]" << "\n";
+                    }
 
                     int height = bottom - top;
                     int width  = right - left;
