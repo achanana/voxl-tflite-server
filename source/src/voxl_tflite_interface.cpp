@@ -505,24 +505,23 @@ void TFliteMobileNet(void* pData)
             switch (interpreter->tensor(input)->type)
             {
                 case kTfLiteFloat32:
-                if (verbose){
-                fprintf(stderr, "\n------kTfLiteFloat32!!");
-                }
-                s->input_floating = true;
-                resize<float>(interpreter->typed_tensor<float>(input), pImageData,
-                                modelImageHeight, modelImageWidth, imageChannels, modelImageHeight,
-                                modelImageWidth, modelImageChannels, s);
-                            
-                break;
+                    if (verbose){
+                        fprintf(stderr, "\n------kTfLiteFloat32!!");
+                    }
+                    s->input_floating = true;
+                    resize<float>(interpreter->typed_tensor<float>(input), pImageData,
+                                    modelImageHeight, modelImageWidth, imageChannels, modelImageHeight,
+                                    modelImageWidth, modelImageChannels, s);
+                    break;
 
                 case kTfLiteUInt8:
-                if (verbose){
-                    fprintf(stderr, "\n------kTfLiteUInt8!!");
-                }
-                resize<uint8_t>(interpreter->typed_tensor<uint8_t>(input), pImageData,
-                                modelImageHeight, modelImageWidth, imageChannels, modelImageHeight,
-                                modelImageWidth, modelImageChannels, s);
-                break;
+                    if (verbose){
+                        fprintf(stderr, "\n------kTfLiteUInt8!!");
+                    }
+                    resize<uint8_t>(interpreter->typed_tensor<uint8_t>(input), pImageData,
+                                    modelImageHeight, modelImageWidth, imageChannels, modelImageHeight,
+                                    modelImageWidth, modelImageChannels, s);
+                    break;
 
                 default:
                 LOG(FATAL) << "cannot handle input type "
@@ -594,7 +593,6 @@ void TFliteMobileNet(void* pData)
                     int height = bottom - top;
                     int width  = right - left;
 
-                  
                     cv::Rect rect(left, top, width, height);
                     cv::Point pt(left, top);
 
@@ -621,7 +619,7 @@ void TFliteMobileNet(void* pData)
         if (pTcpServer == NULL)
         {
             ///<@todo Handle different format types
-            pImageMetadata.format         = IMAGE_FORMAT_RGB; ///<@todo Fix this to the correct format
+            pImageMetadata.format         = IMAGE_FORMAT_RGB; 
             pImageMetadata.size_bytes     = (imageHeight * imageWidth * 3);
             pImageMetadata.stride         = (modelImageWidth * 3);
             if( pRgbImage[g_sendTcpInsertdx]->data != NULL){
@@ -661,7 +659,7 @@ void TFliteMobileNet(void* pData)
   // namespace tflite
 
 // -----------------------------------------------------------------------------------------------------------------------------
-// This function runs the tflite model
+// This function runs the pydnet model
 // -----------------------------------------------------------------------------------------------------------------------------
 void TflitePydnet(void* pData)
 {
@@ -709,7 +707,6 @@ void TflitePydnet(void* pData)
     s->number_of_warmup_runs        = 0;
     s->loop_count                   = 1;
     s->input_floating               = true;
-    //uint32_t numFrames = 0;
 
     if (!s->model_name.c_str())
     {
@@ -946,15 +943,9 @@ void TflitePydnet(void* pData)
             pImageMetadata.format         = IMAGE_FORMAT_RGB;   
             pImageMetadata.size_bytes     = (imageWidth * imageHeight * 3); 
             pImageMetadata.stride         = (imageWidth * 3); 
-            pipe_server_send_camera_frame_to_channel(OUTPUT_ID_RGB_IMAGE, pImageMetadata, (char*)pRgbImage[g_sendTcpInsertdx]->data);
-            // pExternalInterface->BroadcastFrame(OUTPUT_ID_RGB_IMAGE, (char*)pImageMetadata, sizeof(camera_image_metadata_t));
-            // pExternalInterface->BroadcastFrame(OUTPUT_ID_RGB_IMAGE,
-            //                             (char*)pRgbImage[g_sendTcpInsertdx]->data,
-            //                             pImageMetadata->size_bytes);
+            pipe_server_send_camera_frame_to_channel(OUTPUT_ID_RGB_IMAGE, pImageMetadata, (char*)pRgbImage[g_sendTcpInsertdx]->data);;
         }
-
-           queueProcessIdx = ((queueProcessIdx + 1) % MAX_MESSAGES);
-        
+        queueProcessIdx = ((queueProcessIdx + 1) % MAX_MESSAGES); 
      }
 
 

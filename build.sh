@@ -21,16 +21,4 @@ mkdir -p build
 cd build
 cmake -DCMAKE_TOOLCHAIN_FILE=/opt/cross_toolchain/aarch64-gnu-4.9.toolchain.cmake -DCMAKE_BUILD_TYPE=RELEASE -DENABLE_NEON=ON -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS} -std=c++11 -march=armv8-a" ../source
 
-#SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-#TENSORFLOW_DIR="${SCRIPT_DIR}/../../../.."
-#
-## Toolchain compatible names
-#if ! [ -L /usr/bin/aarch64-linux-gnu-g++ ]; then
-#  ln -s /usr/bin/aarch64-linux-gnu-g++-4.9 /usr/bin/aarch64-linux-gnu-g++
-#fi
-#
-#if ! [ -L /usr/bin/aarch64-linux-gnu-gcc ]; then
-#  ln -s /usr/bin/aarch64-linux-gnu-gcc-4.9 /usr/bin/aarch64-linux-gnu-gcc
-#fi
-
 make -j 4 TARGET=aarch64 TARGET_TOOLCHAIN_PREFIX=aarch64-linux-gnu-
