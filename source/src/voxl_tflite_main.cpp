@@ -224,7 +224,7 @@ void PrintHelpMessage()
     printf("\n-l : Class labels filename (Default: /bin/dnn/mobilenet_v1_ssd_coco_labels.txt)");
     printf("\n-d : Dump 'n' preview frames (Default is 0)");
     printf("\n-h : Print this help message");
-    printf("\n\nFor example: voxl-mpa-tflite-gpu -i 192.168.1.159\n\n");
+    printf("\n\nFor example: voxl-tflite-gpu -i 192.168.1.159\n\n");
 }
 
 //------------------------------------------------------------------------------------------------------------------------------
