@@ -87,7 +87,7 @@ Status CameraNamedPipe::Initialize(InputInterfaceData* pInputIntfData)
     m_threadData.readerThreadStop = 0;
     m_pReaderThread               = NULL;
 
-    strcpy(&clientName[0], "voxl-tflite-gpu");
+    strcpy(&clientName[0], "voxl-mpa-tflite-gpu");
 
     if (pInputIntfData != NULL)
     {

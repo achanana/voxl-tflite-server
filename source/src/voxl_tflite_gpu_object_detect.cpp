@@ -123,7 +123,7 @@ void TFliteModelExecute::PipeImageData(camera_image_metadata_t* pImageMetadata, 
 
         int queueInsertIdx = m_tfliteMsgQueue.queueInsertIdx;
         
-        // fprintf(stderr, "\n------voxl-tflite-gpu INFO: Received hires frame-%d: %d %d ... Index: %d",
+        // fprintf(stderr, "\n------voxl-mpa-tflite-gpu INFO: Received hires frame-%d: %d %d ... Index: %d",
         //         pImageMetadata->frame_id, pImageMetadata->width, pImageMetadata->height, queueInsertIdx);
 
         TFLiteMessage* pTFLiteMessage = &m_tfliteMsgQueue.queue[queueInsertIdx];
@@ -166,7 +166,7 @@ TFliteModelExecute* TFliteModelExecute::Create(TFLiteInitData* pInitData)
     {
         if (g_pTFliteModelExecute->Initialize(pInitData) != S_OK)
         {
-            VOXL_LOG_FATAL("\n------voxl-tflite-gpu: Failed to initialize");
+            VOXL_LOG_FATAL("\n------voxl-mpa-tflite-gpu: Failed to initialize");
             g_pTFliteModelExecute->Destroy();
             g_pTFliteModelExecute = NULL;
         }
@@ -212,7 +212,7 @@ Status TFliteModelExecute::Initialize(TFLiteInitData* pInitData)
     }
     else
     {
-        VOXL_LOG_FATAL("\n------voxl-tflite: FATAL: Unsupported model provided!!");
+        VOXL_LOG_FATAL("\n------voxl-mpa-tflite: FATAL: Unsupported model provided!!");
         status = S_ERROR;
     }
 
@@ -258,7 +258,7 @@ Status TFliteModelExecute::Initialize(TFLiteInitData* pInitData)
             }
             else
             {
-                VOXL_LOG_FATAL("\n------voxl-tflite-gpu: FATAL: Cannot open camera pipe!");
+                VOXL_LOG_FATAL("\n------voxl-mpa-tflite-gpu: FATAL: Cannot open camera pipe!");
                 status = S_ERROR;
             }
         }

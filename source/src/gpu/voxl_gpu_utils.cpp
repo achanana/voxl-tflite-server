@@ -65,7 +65,7 @@ ImageToTensor* ImageToTensor::Create(ImageToTensorCreateData* pCreateData)
             pImageToTensor->Initialize(pCreateData);
             break;
         default:
-            VOXL_LOG_FATAL("\n------voxl-tflite-server FATAL: Cannot create image to tensor object");
+            VOXL_LOG_FATAL("\n------voxl-mpa-tflite-server FATAL: Cannot create image to tensor object");
             break;
     }
 
@@ -90,7 +90,7 @@ Status GpuImageToTensor::Initialize(ImageToTensorCreateData* pCreateData)
 
 	if (m_platform.empty())
     {
-	    VOXL_LOG_FATAL("\n------voxl-tflite-server FATAL: OpenCL platforms not found");
+	    VOXL_LOG_FATAL("\n------voxl-mpa-tflite-server FATAL: OpenCL platforms not found");
         status = S_ERROR;
 	}
 
