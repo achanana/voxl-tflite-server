@@ -93,7 +93,7 @@ Status CameraNamedPipe::Initialize(InputInterfaceData* pInputIntfData)
     {
         memcpy(&m_threadData.interfaceData, pInputIntfData, sizeof(InputInterfaceData));
 
-        int result = pipe_client_init_channel(ChannelId,
+        int result = pipe_client_open(ChannelId,
                                               (char*) pInputIntfData->pipeName,
                                               &clientName[0],
                                               ReaderThreadDisabled,

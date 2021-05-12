@@ -297,6 +297,7 @@ void TFliteMobileNet(void* pData)
     int cam                                  = pThreadData->camera;
     int skip                                 = pThreadData->frame_skip;
     bool verbose                             = pThreadData->verbose;
+    pipe_info_t tflite_pipe                  = {"tflite", MPA_TFLITE_PATH, "camera", "voxl-tflite-server", 16*1024*1024, getpid()};    
 
     if (pTcpServer != NULL)
     {
@@ -308,8 +309,7 @@ void TFliteMobileNet(void* pData)
     else
     {
         pRgbImage[0] = new cv::Mat();
-        pipe_server_set_default_pipe_size(OUTPUT_ID_RGB_IMAGE, 16*1024*1024);
-        pipe_server_init_channel(OUTPUT_ID_RGB_IMAGE, MPA_TFLITE_PATH, 0);
+        pipe_server_create(OUTPUT_ID_RGB_IMAGE, tflite_pipe, 0);
     }
 
     s = new tflite::label_image::Settings;
@@ -623,7 +623,7 @@ void TFliteMobileNet(void* pData)
             pImageMetadata.size_bytes     = (imageHeight * imageWidth * 3);
             pImageMetadata.stride         = (modelImageWidth * 3);
             if( pRgbImage[g_sendTcpInsertdx]->data != NULL){
-                    pipe_server_send_camera_frame_to_channel(OUTPUT_ID_RGB_IMAGE, pImageMetadata, (char*)pRgbImage[g_sendTcpInsertdx]->data);
+                    pipe_server_write_camera_frame(OUTPUT_ID_RGB_IMAGE, pImageMetadata, (char*)pRgbImage[g_sendTcpInsertdx]->data);
             }
         }
 
@@ -674,6 +674,7 @@ void TflitePydnet(void* pData)
     cv::Mat*  pRgbImage[MAX_EXT_MESSAGES];
     cv::Mat resizedImage                     = cv::Mat();
     TcpServer* pTcpServer                    = pThreadData->pTcpServer;
+    pipe_info_t tflite_pipe                  = {"tflite", MPA_TFLITE_PATH, "camera", "voxl-tflite-server", 16*1024*1024, getpid()};    
 
     if (pTcpServer != NULL)
     {
@@ -685,8 +686,7 @@ void TflitePydnet(void* pData)
     else
     {
         pRgbImage[0] = new cv::Mat();
-        pipe_server_set_default_pipe_size(OUTPUT_ID_RGB_IMAGE, 16*1024*1024);
-        pipe_server_init_channel(OUTPUT_ID_RGB_IMAGE, MPA_TFLITE_PATH, 0);
+        pipe_server_create(OUTPUT_ID_RGB_IMAGE, tflite_pipe, 0);
     }
 
     s = new tflite::label_image::Settings;
@@ -707,6 +707,7 @@ void TflitePydnet(void* pData)
     s->number_of_warmup_runs        = 0;
     s->loop_count                   = 1;
     s->input_floating               = true;
+    
 
     if (!s->model_name.c_str())
     {
@@ -943,7 +944,7 @@ void TflitePydnet(void* pData)
             pImageMetadata.format         = IMAGE_FORMAT_RGB;   
             pImageMetadata.size_bytes     = (imageWidth * imageHeight * 3); 
             pImageMetadata.stride         = (imageWidth * 3); 
-            pipe_server_send_camera_frame_to_channel(OUTPUT_ID_RGB_IMAGE, pImageMetadata, (char*)pRgbImage[g_sendTcpInsertdx]->data);;
+            pipe_server_write_camera_frame(OUTPUT_ID_RGB_IMAGE, pImageMetadata, (char*)pRgbImage[g_sendTcpInsertdx]->data);;
         }
         queueProcessIdx = ((queueProcessIdx + 1) % MAX_MESSAGES); 
      }
