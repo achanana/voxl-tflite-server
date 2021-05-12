@@ -24,6 +24,20 @@ Build steps
 
 Steps to run
 ============
+The tflite-server supports hires or tracking input for object detection (mobilenet) and hires for monocular depth estimation (pydnet). Specify camera input with -c 0 for hires, -c 1 for tracking.
+## VOXL-STREAMER
+1. (VOXL-1) adb shell
+1. (VOXL-1) bash
+1. (VOXL-1) voxl-camera-server -c /etc/modalai/voxl-camera-server.conf
+1. (VOXL-2) adb shell
+1. (VOXL-2) bash
+1. (VOXL-2) voxl-mpa-tflite-server -m mobilenet (or -m pydnet)
+1. (VOXL-3) adb shell
+1. (VOXL-3) bash
+1. (VOXL-3) voxl-streamer
+To view the output rtsp stream, open VLC media player. Select media, open network stream, and the URL will be rtsp://YOUR-VOXL-IP-ADDRESS:8900/live
+
+## MPA to ROS
 1. (PC) cd <path-to>/voxl-tflite-server/
 1. (PC) ./install_on_voxl.sh
 1. (PC) adb shell
