@@ -64,6 +64,7 @@ include_directories(
 link_directories(/usr/lib64/)
 
 target_link_libraries(${PROJECT_NAME}
+  -Wl,-rpath-link,/usr/lib64/
   -L/usr/lib64/
   tensorflow-lite
   benchmark-lib
