@@ -1,4 +1,4 @@
-# voxl-mpa-tflite-server
+# voxl-tflite-server
 
 How to use tensorflow-lite on VOXL
 
@@ -6,7 +6,7 @@ High Level Overview
 ===================
 The following picture shows at a glance how the different components interact with each other.
 
-![](images/voxl-mpa-tflite-server.png)
+![](images/voxl-tflite-server.png)
 
 Build steps
 ===========
@@ -14,8 +14,8 @@ Build steps
     * ./install-cross-docker.sh
 1. (PC) mkdir my-git-source-code
 1. (PC) cd my-git-source-code
-1. (PC) git clone git@gitlab.com:voxl-public/modal-pipe-architecture/voxl-mpa-tflite-server.git
-1. (PC) cd <path-to>/voxl-mpa-tflite-server/
+1. (PC) git clone git@gitlab.com:voxl-public/modal-pipe-architecture/voxl-tflite-server.git
+1. (PC) cd <path-to>/voxl-tflite-server/
 1. (PC) voxl-docker -i voxl-cross
 1. (PC_CROSS_DOCKER) ./install_build_deps.sh
 1. (PC_CROSS_DOCKER) ./clean.sh
@@ -24,7 +24,21 @@ Build steps
 
 Steps to run
 ============
-1. (PC) cd <path-to>/voxl-mpa-tflite-server/
+The tflite-server supports hires or tracking input for object detection (mobilenet) and hires for monocular depth estimation (pydnet). Specify camera input with -c 0 for hires, -c 1 for tracking.
+## VOXL-STREAMER
+1. (VOXL-1) adb shell
+1. (VOXL-1) bash
+1. (VOXL-1) voxl-camera-server -c /etc/modalai/voxl-camera-server.conf
+1. (VOXL-2) adb shell
+1. (VOXL-2) bash
+1. (VOXL-2) voxl-tflite-server -m mobilenet (or -m pydnet)
+1. (VOXL-3) adb shell
+1. (VOXL-3) bash
+1. (VOXL-3) voxl-streamer <br>
+To view the output rtsp stream, open VLC media player. Select media, open network stream, and the URL will be rtsp://YOUR-VOXL-IP-ADDRESS:8900/live
+
+## MPA to ROS
+1. (PC) cd <path-to>/voxl-tflite-server/
 1. (PC) ./install_on_voxl.sh
 1. (PC) adb shell
 1. (VOXL-Terminal-1) export ROS_IP=IP-ADDRESS-OF-VOXL
@@ -42,15 +56,15 @@ Steps to run
     - On the left column expand the "My-Camera-Image"
     - Click on the "Image Topic" and in the right column enter "/voxl_hires_image" 
 1. (PC) adb shell
-1. (VOXL-Terminal-2) voxl-camera-server -c /etc/modalai/voxl-camera-server.conf
+1. (VOXL-Terminal-2) voxl-camera-server
 1. (PC) adb shell
-1. (VOXL-Terminal-3) voxl-mpa-tflite-server -m mobilenet
+1. (VOXL-Terminal-3) voxl-tflite-server -m mobilenet
 1. (PC) adb shell
 1. (PC) source /opt/ros/indigo/setup.bash
 1. (VOXL-Terminal-4) vi /opt/ros/indigo/share/voxl_mpa_cam_ros/launch/voxl_mpa_cam_ros.launch
     * Change line 15 to the new pipe name "default="/run/mpa/tflite/image/"    
 1. (VOXL-Terminal-4) python /usr/bin/launch_voxl_mpa_cam_ros.py
 1. In order to run the pydnet model
-    * (VOXL) voxl-mpa-tflite-server -m pydnet
+    * (VOXL) voxl-tflite-server -m pydnet
     * (VOXL) Check the outputs in the /usr/bin/dnn/data directory
     * (VOXL) The output files are the ones that have "-depth" in the filename

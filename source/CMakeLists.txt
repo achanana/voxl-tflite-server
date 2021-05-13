@@ -35,7 +35,7 @@ cmake_minimum_required(VERSION 3.3)
 set(CMAKE_BUILD_TYPE "Release")
 set(CMAKE_CXX_FLAGS "-std=c++11 -Wno-attributes -march=armv8-a -DENABLE_DEBUG_LOGS")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g -pthread -Wall -fPIC")
-set(PROJECT_NAME voxl-mpa-tflite-server)
+set(PROJECT_NAME voxl-tflite-server)
 
 file(GLOB_RECURSE all_src_files "*.c*")
 add_executable(${PROJECT_NAME} ${all_src_files})
@@ -64,6 +64,7 @@ include_directories(
 link_directories(/usr/lib64/)
 
 target_link_libraries(${PROJECT_NAME}
+  -Wl,-rpath-link,/usr/lib64/
   -L/usr/lib64/
   tensorflow-lite
   benchmark-lib

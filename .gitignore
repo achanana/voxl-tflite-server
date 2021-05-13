@@ -1,0 +1,5 @@
+.vscode/
+build/
+*.ipk
+ipk/*.tar.gz
+ipk/data

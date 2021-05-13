@@ -122,9 +122,9 @@ void TFliteModelExecute::PipeImageData(camera_image_metadata_t* pImageMetadata, 
         // fclose(fd);
 
         int queueInsertIdx = m_tfliteMsgQueue.queueInsertIdx;
-
-        fprintf(stderr, "\n------voxl-mpa-tflite-gpu INFO: Received hires frame-%d: %d %d ... Index: %d",
-                pImageMetadata->frame_id, pImageMetadata->width, pImageMetadata->height, queueInsertIdx);
+        
+        // fprintf(stderr, "\n------voxl-mpa-tflite-gpu INFO: Received hires frame-%d: %d %d ... Index: %d",
+        //         pImageMetadata->frame_id, pImageMetadata->width, pImageMetadata->height, queueInsertIdx);
 
         TFLiteMessage* pTFLiteMessage = &m_tfliteMsgQueue.queue[queueInsertIdx];
 
@@ -191,6 +191,9 @@ Status TFliteModelExecute::Initialize(TFLiteInitData* pInitData)
     m_tfliteThreadData.pMsgQueue     = &m_tfliteMsgQueue;
     m_tfliteMsgQueue.queueInsertIdx  = 0;
     m_pInputPipeInterface            = NULL;
+    m_tfliteThreadData.camera        = pInitData->camera;
+    m_tfliteThreadData.frame_skip    = pInitData->frame_skip;
+    m_tfliteThreadData.verbose       = pInitData->verbose;
 
     // Start the thread that will run the tensorflow lite model to detect objects in the camera frames. This thread wont
     // stop issuing requests to the camera module until we terminate the program with Ctrl+C
@@ -240,7 +243,12 @@ Status TFliteModelExecute::Initialize(TFLiteInitData* pInitData)
             // pthread_mutex_unlock(&m_tfliteThreadData.mutex);
 
             inputData.ImageReceivedCallback = PipeImageDataCb;
-            inputData.pipeName              = "/run/mpa/hires_preview/"; ///@todo should not be hardcoded
+            if (pInitData->camera == 0){
+                inputData.pipeName = "/run/mpa/hires_preview/";
+            }
+            else {
+                inputData.pipeName = "/run/mpa/tracking/";
+            }
 
             m_pInputPipeInterface = CameraNamedPipe::Create();
 
