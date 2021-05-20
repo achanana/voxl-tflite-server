@@ -29,6 +29,7 @@ Modified by ModalAI to run the object detection model on live camera frames
 #include <iostream>
 #include <algorithm>
 #include <vector>
+#include <unistd.h>
 
 #include "debug_log.h"
 #include "memory.h"
@@ -39,11 +40,7 @@ Modified by ModalAI to run the object detection model on live camera frames
 #include "voxl_tflite_interface.h"
 #include <opencv2/opencv.hpp>
 #include <opencv2/imgproc/types_c.h>
-#include "tcp_utils.hpp"
 
-#define LOG(x) std::cout
-// #define FRAME_DUMP
-#define STATS_DUMP
 #define MPA_TFLITE_PATH (MODAL_PIPE_DEFAULT_BASE_DIR "tflite/")
 
 void* ThreadMobileNet(void* data);
@@ -55,13 +52,6 @@ namespace tflite
 {
 namespace label_image
 {
-
-const int MAX_SENDTCP  = 128;
-int g_sendTcpInsertdx  = 0;
-
-const int     MAX_EXT_MESSAGES    = 128; ///<@todo Check this value for being too high
-int           g_sendExtMessageIdx = 0;
-TFLiteMessage g_sendExtMsg[MAX_EXT_MESSAGES];
 
 // Mutex / Condition Variables for sync between camera frame threads
 std::mutex              g_condMutex;
@@ -75,8 +65,6 @@ struct SendTcpData
     uint64_t timestampNsecs;
     uint8_t* pRgbData;
 };
-
-SendTcpData g_sendTcpData[MAX_SENDTCP];
 
 template<typename T>
 T* TensorData(TfLiteTensor* tensor, int batch_index);
@@ -99,7 +87,7 @@ float* TensorData(TfLiteTensor* tensor, int batch_index)
         case kTfLiteFloat32:
             return tensor->data.f + nelems * batch_index;
         default:
-            LOG(FATAL) << "Should not reach here!";
+            VOXL_LOG_FATAL("Should not reach here!\n");
     }
 
     return nullptr;
@@ -123,7 +111,7 @@ uint8_t* TensorData(TfLiteTensor* tensor, int batch_index)
         case kTfLiteUInt8:
             return tensor->data.uint8 + nelems * batch_index;
         default:
-            LOG(FATAL) << "Should not reach here!";
+            VOXL_LOG_FATAL("Should not reach here!\n");
     }
 
     return nullptr;
@@ -172,27 +160,13 @@ TfLiteDelegatePtrMap GetDelegates(Settings* s)
 
         if (!delegate)
         {
-            LOG(INFO) << "GPU acceleration is unsupported on this platform.";
+            VOXL_LOG_ERROR("GPU acceleration is unsupported on this platform.\n");
         } 
         else 
         {
-            LOG(INFO) << "GPU acceleration is SUPPORTED on this platform\n";
+            VOXL_LOG_INFO("GPU acceleration is SUPPORTED on this platform\n");
             delegates.emplace("GPU", std::move(delegate));
         }
-    }
-
-    if (s->accel) 
-    {
-        // auto delegate = evaluation::CreateNNAPIDelegate();
-
-        // if (!delegate)
-        // {
-        //     LOG(INFO) << "NNAPI acceleration is unsupported on this platform.";
-        // }
-        // else
-        // {
-        //     delegates.emplace("NNAPI", evaluation::CreateNNAPIDelegate());
-        // }
     }
 
     return delegates;
@@ -210,7 +184,7 @@ TfLiteStatus ReadLabelsFile(const string& file_name,
 
     if (!file)
     {
-        LOG(FATAL) << "Labels file " << file_name << " not found\n";
+        VOXL_LOG_FATAL("Labels file %s not found\n", file_name.c_str());
         return kTfLiteError;
     }
 
@@ -234,50 +208,6 @@ TfLiteStatus ReadLabelsFile(const string& file_name,
 }
 
 // -----------------------------------------------------------------------------------------------------------------------------
-// Send the frame over Tcp
-// -----------------------------------------------------------------------------------------------------------------------------
-void SendImageData(void* pData)
-{
-    // TFliteThreadData* pThreadData = (TFliteThreadData*)pData;
-    // TcpServer*        pTcpServer  = pThreadData->pTcpServer;
-
-    // int sendTcpProcessIdx = 0;
-
-    // int opts[4] = { 0, 0, 0, 0 };
-
-    // while (pThreadData->stop == false)
-    // {
-    //     fprintf(stderr, "\n------Sending Tcp server frame %d ... %d %d",
-    //             g_sendTcpData[sendTcpProcessIdx].frameNumber, sendTcpProcessIdx, g_sendTcpInsertdx);
-
-    //     if (sendTcpProcessIdx != g_sendTcpInsertdx)
-    //     {
-    //         fprintf(stderr, "\n------ Tcp sending frame %d ... pointer %p ... %d %d",
-    //                 g_sendTcpData[sendTcpProcessIdx].frameNumber,
-    //                 g_sendTcpData[sendTcpProcessIdx].pRgbData,
-    //                 g_sendTcpData[sendTcpProcessIdx].width,
-    //                 g_sendTcpData[sendTcpProcessIdx].height);
-
-    //         pTcpServer->send_message(g_sendTcpData[sendTcpProcessIdx].pRgbData,
-    //                                 g_sendTcpData[sendTcpProcessIdx].width*g_sendTcpData[sendTcpProcessIdx].height*3,
-    //                                 2,
-    //                                 g_sendTcpData[sendTcpProcessIdx].width,
-    //                                 g_sendTcpData[sendTcpProcessIdx].height,
-    //                                 &opts[0],
-    //                                 g_sendTcpData[sendTcpProcessIdx].frameNumber,
-    //                                 g_sendTcpData[sendTcpProcessIdx].timestampNsecs);
-
-    //         sendTcpProcessIdx = ((sendTcpProcessIdx + 1) % MAX_SENDTCP);
-    //     }
-    //     else
-    //     {
-    //         std::unique_lock<std::mutex> lock(g_condMutex);
-    //         g_condVar.wait(lock);
-    //     }
-    // }
-}
-
-// -----------------------------------------------------------------------------------------------------------------------------
 // This function runs the object detection model on every live camera frame
 // -----------------------------------------------------------------------------------------------------------------------------
 void TFliteMobileNet(void* pData)
@@ -290,27 +220,14 @@ void TFliteMobileNet(void* pData)
     tflite::ops::builtin::BuiltinOpResolver  resolver;
     ///<@todo delete this
     tflite::label_image::Settings* s         = NULL;
-    cv::Mat*  pRgbImage[MAX_EXT_MESSAGES];
+    cv::Mat*  rgbImage                       = new cv::Mat();
     cv::Mat resizedImage                     = cv::Mat();
     TFliteThreadData* pThreadData            = (TFliteThreadData*)pData;
-    TcpServer* pTcpServer                    = pThreadData->pTcpServer;
     int cam                                  = pThreadData->camera;
-    int skip                                 = pThreadData->frame_skip;
     bool verbose                             = pThreadData->verbose;
-    pipe_info_t tflite_pipe                  = {"tflite", MPA_TFLITE_PATH, "camera", "voxl-tflite-server", 16*1024*1024, getpid()};    
+    pipe_info_t tflite_pipe                  = {"tflite", MPA_TFLITE_PATH, "camera_image_metadata_t", "voxl-tflite-server", 16*1024*1024, 0};    
 
-    if (pTcpServer != NULL)
-    {
-        for (int i = 0; i < MAX_EXT_MESSAGES; i++)
-        {
-            pRgbImage[i] = new cv::Mat();
-        }
-    }
-    else
-    {
-        pRgbImage[0] = new cv::Mat();
-        pipe_server_create(OUTPUT_ID_RGB_IMAGE, tflite_pipe, 0);
-    }
+    pipe_server_create(OUTPUT_ID_RGB_IMAGE, tflite_pipe, 0);
 
     s = new tflite::label_image::Settings;
 
@@ -331,7 +248,7 @@ void TFliteMobileNet(void* pData)
 
     if (!s->model_name.c_str())
     {
-        LOG(ERROR) << "no model file name\n";
+        VOXL_LOG_ERROR("FATAL: no model file name\n");
         exit(-1);
     }
 
@@ -339,45 +256,25 @@ void TFliteMobileNet(void* pData)
 
     if (!model)
     {
-        LOG(FATAL) << "\nFailed to mmap model " << s->model_name << "\n";
+        VOXL_LOG_FATAL("FATAL: Failed to mmap model %s\n", s->model_name.c_str());
         exit(-1);
     }
 
     s->model = model.get();
-    LOG(INFO) << "\nLoaded model " << s->model_name << "\n";
+    VOXL_LOG_INFO("Loaded model %s\n", s->model_name.c_str());
     model->error_reporter();
-    LOG(INFO) << "Resolved reporter\n";
+    VOXL_LOG_INFO("Resolved reporter\n");
 
     tflite::InterpreterBuilder(*model, resolver)(&interpreter);
 
     if (!interpreter)
     {
-        LOG(FATAL) << "Failed to construct interpreter\n";
+        VOXL_LOG_FATAL("Failed to construct interpreter\n");
         exit(-1);
     }
 
     interpreter->UseNNAPI(s->old_accel);
     interpreter->SetAllowFp16PrecisionForFp32(s->allow_fp16);
-
-    if (s->verbose)
-    {
-        LOG(INFO) << "tensors size: " << interpreter->tensors_size() << "\n";
-        LOG(INFO) << "nodes size: " << interpreter->nodes_size() << "\n";
-        LOG(INFO) << "inputs: " << interpreter->inputs().size() << "\n";
-        LOG(INFO) << "input(0) name: " << interpreter->GetInputName(0) << "\n";
-
-        int t_size = interpreter->tensors_size();
-
-        for (int i = 0; i < t_size; i++)
-        {
-            if (interpreter->tensor(i)->name)
-              LOG(INFO) << i << ": " << interpreter->tensor(i)->name << ", "
-                        << interpreter->tensor(i)->bytes << ", "
-                        << interpreter->tensor(i)->type << ", "
-                        << interpreter->tensor(i)->params.scale << ", "
-                        << interpreter->tensor(i)->params.zero_point << "\n";
-        }
-    }
 
     if (s->number_of_threads != -1)
     {
@@ -390,19 +287,20 @@ void TFliteMobileNet(void* pData)
     {
         if (interpreter->ModifyGraphWithDelegate(delegate.second.get()) != kTfLiteOk)
         {
-            LOG(FATAL) << "Failed to apply " << delegate.first << " delegate\n";
+            VOXL_LOG_INFO("Failed to apply delegate\n");
             break;
         }
         else
         {
-            LOG(INFO) << "Applied " << delegate.first << " delegate ";
+            VOXL_LOG_INFO("Applied delegate \n");
             break;
         }
     }
 
     if (interpreter->AllocateTensors() != kTfLiteOk)
     {
-        LOG(FATAL) << "Failed to allocate tensors!";
+        VOXL_LOG_FATAL("Failed to allocate tensors!\n");
+        exit(-1);
     }
 
     TfLiteIntArray* dims = interpreter->tensor(interpreter->inputs()[0])->dims;
@@ -463,200 +361,146 @@ void TFliteMobileNet(void* pData)
         int imageWidth    = meta.width;
         int imageHeight   = meta.height;
         int imageChannels = 3;
-        int frameNumber   = meta.frame_id;
 
         gettimeofday(&yuvrgb_start_time, nullptr);
-        if (skip == 0 || numFrames % skip == 0){
-            if (cam == 0){
-                cv::Mat yuv(imageHeight + imageHeight/2, imageWidth, CV_8UC1, (uchar*)pImagePixels);
-                cv::cvtColor(yuv, *pRgbImage[g_sendTcpInsertdx], CV_YUV2RGB_NV21);
-            }
-            else if (cam == 1){
-                cv::Mat yuv(imageHeight, imageWidth, CV_8UC1, (uchar*)pImagePixels);
-                cv::Mat in[] = {yuv, yuv, yuv};
-                cv::merge(in, 3, *pRgbImage[g_sendTcpInsertdx]);
-            }
-            cv::resize(*pRgbImage[g_sendTcpInsertdx],
-                   resizedImage,
-                   cv::Size(modelImageWidth, modelImageHeight),
-                   0,
-                   0,
-                   CV_INTER_LINEAR);
-            gettimeofday(&yuvrgb_stop_time, nullptr);
+        if (cam == 0){
+            cv::Mat yuv(imageHeight + imageHeight/2, imageWidth, CV_8UC1, (uchar*)pImagePixels);
+            cv::cvtColor(yuv, *rgbImage, CV_YUV2RGB_NV21);
+        }
+        else if (cam == 1){
+            cv::Mat yuv(imageHeight, imageWidth, CV_8UC1, (uchar*)pImagePixels);
+            cv::Mat in[] = {yuv, yuv, yuv};
+            cv::merge(in, 3, *rgbImage);
+        }
+        cv::resize(*rgbImage,
+               resizedImage,
+               cv::Size(modelImageWidth, modelImageHeight),
+               0,
+               0,
+               CV_INTER_LINEAR);
+        gettimeofday(&yuvrgb_stop_time, nullptr);
 
 
-            totalYuvRgbTimemsecs += (get_us(yuvrgb_stop_time) - get_us(yuvrgb_start_time)) / 1000;
+        totalYuvRgbTimemsecs += (get_us(yuvrgb_stop_time) - get_us(yuvrgb_start_time)) / 1000;
 
-            uint8_t*               pImageData = (uint8_t*)resizedImage.data;
-            const std::vector<int> inputs     = interpreter->inputs();
-            const std::vector<int> outputs    = interpreter->outputs();
+        uint8_t*               pImageData = (uint8_t*)resizedImage.data;
+        const std::vector<int> inputs     = interpreter->inputs();
+        const std::vector<int> outputs    = interpreter->outputs();
 
-            // Get input dimension from the input tensor metadata assuming one input only
+        // Get input dimension from the input tensor metadata assuming one input only
 
-            int input = interpreter->inputs()[0];
+        int input = interpreter->inputs()[0];
 
-            if (s->verbose)
+        if (s->verbose)
+        {
+            // PrintInterpreterState(interpreter.get());
+        }
+
+        gettimeofday(&resize_start_time, nullptr);
+
+        switch (interpreter->tensor(input)->type)
+        {
+            case kTfLiteFloat32:
+                s->input_floating = true;
+                resize<float>(interpreter->typed_tensor<float>(input), pImageData,
+                                modelImageHeight, modelImageWidth, imageChannels, modelImageHeight,
+                                modelImageWidth, modelImageChannels, s);
+                break;
+
+            case kTfLiteUInt8:
+                resize<uint8_t>(interpreter->typed_tensor<uint8_t>(input), pImageData,
+                                modelImageHeight, modelImageWidth, imageChannels, modelImageHeight,
+                                modelImageWidth, modelImageChannels, s);
+                break;
+
+            default:
+            exit(-1);
+        }
+
+        gettimeofday(&resize_stop_time, nullptr);
+
+        totalResizeTimemsecs += (get_us(resize_stop_time) - get_us(resize_start_time)) / 1000;
+
+        gettimeofday(&start_time, nullptr);
+
+        for (int i = 0; i < s->loop_count; i++)
+        {
+            if (interpreter->Invoke() != kTfLiteOk)
             {
-                // PrintInterpreterState(interpreter.get());
-            }
-
-            gettimeofday(&resize_start_time, nullptr);
-
-            switch (interpreter->tensor(input)->type)
-            {
-                case kTfLiteFloat32:
-                    if (verbose){
-                        fprintf(stderr, "\n------kTfLiteFloat32!!");
-                    }
-                    s->input_floating = true;
-                    resize<float>(interpreter->typed_tensor<float>(input), pImageData,
-                                    modelImageHeight, modelImageWidth, imageChannels, modelImageHeight,
-                                    modelImageWidth, modelImageChannels, s);
-                    break;
-
-                case kTfLiteUInt8:
-                    if (verbose){
-                        fprintf(stderr, "\n------kTfLiteUInt8!!");
-                    }
-                    resize<uint8_t>(interpreter->typed_tensor<uint8_t>(input), pImageData,
-                                    modelImageHeight, modelImageWidth, imageChannels, modelImageHeight,
-                                    modelImageWidth, modelImageChannels, s);
-                    break;
-
-                default:
-                LOG(FATAL) << "cannot handle input type "
-                            << interpreter->tensor(input)->type << " yet";
-                exit(-1);
-            }
-
-            gettimeofday(&resize_stop_time, nullptr);
-
-            totalResizeTimemsecs += (get_us(resize_stop_time) - get_us(resize_start_time)) / 1000;
-
-            gettimeofday(&start_time, nullptr);
-
-            for (int i = 0; i < s->loop_count; i++)
-            {
-                if (interpreter->Invoke() != kTfLiteOk)
-                {
-                    LOG(FATAL) << "Failed to invoke tflite!\n";
-                }
-            }
-
-            gettimeofday(&stop_time, nullptr);
-            if (verbose){
-                LOG(INFO) << "GPU invoked \n";
-                LOG(INFO) << "average GPU model execution time: "
-                    << (get_us(stop_time) - get_us(start_time)) / (s->loop_count * 1000)
-                    << " ms \n";
-            }
-            
-            totalGpuExecutionTimemsecs += (get_us(stop_time) - get_us(start_time)) / 1000;
-
-            // https://www.tensorflow.org/lite/models/object_detection/overview#starter_model
-            TfLiteTensor* output_locations    = interpreter->tensor(interpreter->outputs()[0]);
-            TfLiteTensor* output_classes      = interpreter->tensor(interpreter->outputs()[1]);
-            TfLiteTensor* output_scores       = interpreter->tensor(interpreter->outputs()[2]);
-            TfLiteTensor* output_detections   = interpreter->tensor(interpreter->outputs()[3]);
-            const float*  detected_locations  = TensorData<float>(output_locations, 0);
-            const float*  detected_classes    = TensorData<float>(output_classes, 0);
-            const float*  detected_scores     = TensorData<float>(output_scores, 0);
-            const int     detected_numclasses = (int)(*TensorData<float>(output_detections, 0));
-
-            std::vector<string> labels;
-            size_t label_count;
-
-            if (ReadLabelsFile(s->labels_file_name, &labels, &label_count) != kTfLiteOk)
-            {
-                exit(-1);
-            }
-            if (verbose){
-                LOG(INFO) << "Frame: " << frameNumber << ".... Detected Num Classes is: " << detected_numclasses << "\n";
-            }
-
-            for (int i = 0; i < detected_numclasses; i++)
-            {
-                const float score  = detected_scores[i];
-                const int   top    = detected_locations[4 * i + 0] * imageHeight;
-                const int   left   = detected_locations[4 * i + 1] * imageWidth;
-                const int   bottom = detected_locations[4 * i + 2] * imageHeight;
-                const int   right  = detected_locations[4 * i + 3] * imageWidth;
-
-                // Check for object detection confidence of 60% or more
-                if (score > 0.6f)
-                {
-                    if (verbose){
-                         LOG(INFO) << score * 100.0 << "\t" << " Class id:  " << labels[detected_classes[i]]
-                            << "\t" << "[ " << left << ", " << top << ", " << right-left << ", " << bottom-top << " ]" << "\n";
-                    }
-
-                    int height = bottom - top;
-                    int width  = right - left;
-
-                    cv::Rect rect(left, top, width, height);
-                    cv::Point pt(left, top);
-
-                    cv::rectangle(*pRgbImage[g_sendTcpInsertdx], rect, cv::Scalar(0, 200, 0), 7);
-                    cv::putText(*pRgbImage[g_sendTcpInsertdx],
-                                labels[detected_classes[i]], pt, cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255, 0, 0), 2);
-                
-
-    #ifdef FRAME_DUMP
-                    char filename[128];
-                    {
-                        sprintf(filename, "/data/misc/camera/frame_%d.bmp", frameNumber);
-                        cv::imwrite(filename, *pRgbImage[g_sendTcpInsertdx]);
-                    }
-    #endif // FRAME_DUMP
-                }
+                VOXL_LOG_FATAL("Failed to invoke tflite!\n");
             }
         }
 
-        if (verbose){
-            LOG(INFO) << "\n\n";
+        gettimeofday(&stop_time, nullptr);
+        
+        totalGpuExecutionTimemsecs += (get_us(stop_time) - get_us(start_time)) / 1000;
+
+        // https://www.tensorflow.org/lite/models/object_detection/overview#starter_model
+        TfLiteTensor* output_locations    = interpreter->tensor(interpreter->outputs()[0]);
+        TfLiteTensor* output_classes      = interpreter->tensor(interpreter->outputs()[1]);
+        TfLiteTensor* output_scores       = interpreter->tensor(interpreter->outputs()[2]);
+        TfLiteTensor* output_detections   = interpreter->tensor(interpreter->outputs()[3]);
+        const float*  detected_locations  = TensorData<float>(output_locations, 0);
+        const float*  detected_classes    = TensorData<float>(output_classes, 0);
+        const float*  detected_scores     = TensorData<float>(output_scores, 0);
+        const int     detected_numclasses = (int)(*TensorData<float>(output_detections, 0));
+
+        std::vector<string> labels;
+        size_t label_count;
+
+        if (ReadLabelsFile(s->labels_file_name, &labels, &label_count) != kTfLiteOk)
+        {
+            exit(-1);
+        }
+
+        for (int i = 0; i < detected_numclasses; i++)
+        {
+            const float score  = detected_scores[i];
+            const int   top    = detected_locations[4 * i + 0] * imageHeight;
+            const int   left   = detected_locations[4 * i + 1] * imageWidth;
+            const int   bottom = detected_locations[4 * i + 2] * imageHeight;
+            const int   right  = detected_locations[4 * i + 3] * imageWidth;
+
+            // Check for object detection confidence of 60% or more
+            if (score > 0.6f)
+            {
+
+                int height = bottom - top;
+                int width  = right - left;
+
+                cv::Rect rect(left, top, width, height);
+                cv::Point pt(left, top);
+
+                cv::rectangle(*rgbImage, rect, cv::Scalar(0, 200, 0), 7);
+                cv::putText(*rgbImage,
+                            labels[detected_classes[i]], pt, cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255, 0, 0), 2);
+            
+            }
         }
         
-        if (pTcpServer == NULL)
-        {
-            ///<@todo Handle different format types
-            meta.format         = IMAGE_FORMAT_RGB; 
-            meta.size_bytes     = (imageHeight * imageWidth * 3);
-            meta.stride         = (modelImageWidth * 3);
-            if( pRgbImage[g_sendTcpInsertdx]->data != NULL){
-                    pipe_server_write_camera_frame(OUTPUT_ID_RGB_IMAGE, meta, (char*)pRgbImage[g_sendTcpInsertdx]->data);
-            }
+        ///<@todo Handle different format types
+        meta.format         = IMAGE_FORMAT_RGB; 
+        meta.size_bytes     = (imageHeight * imageWidth * 3);
+        meta.stride         = (modelImageWidth * 3);
+        if( rgbImage->data != NULL){
+                pipe_server_write_camera_frame(OUTPUT_ID_RGB_IMAGE, meta, (char*)rgbImage->data);
         }
 
-         queueProcessIdx = ((queueProcessIdx + 1) % MAX_MESSAGES);
+        queueProcessIdx = ((queueProcessIdx + 1) % MAX_MESSAGES);
     }
-
-#ifdef STATS_DUMP
-    struct timeval end_time;
-    gettimeofday(&end_time, nullptr);
-    LOG(INFO) << "\n\nAverage execution time per frame in msecs: ";
-    LOG(INFO) << ((get_us(end_time) - get_us(begin_time)) / 1000) / numFrames << " ms \n";
-    LOG(INFO) << "Average resize time per frame msecs: " << totalResizeTimemsecs / numFrames << "\n";
-    LOG(INFO) << "Average yuv-->rgb time per frame in msecs: " << totalYuvRgbTimemsecs / numFrames << "\n";
-    LOG(INFO) << "\n\n ==== Average GPU model execution time per frame: " << totalGpuExecutionTimemsecs / numFrames << " msecs\n";
-#endif // STATS_DUMP
 
     if (s != NULL)
     {
         delete s;
     }
 
-    if (pTcpServer == NULL)
+    if (rgbImage != NULL)
     {
-        if (pRgbImage[0] != NULL)
-        {
-            delete pRgbImage[0];
-            pRgbImage[0] = NULL;
-        }
+        delete rgbImage;
+        rgbImage = NULL;
     }
     pipe_server_close_all();
 }
-  // namespace label_image
-  // namespace tflite
 
 // -----------------------------------------------------------------------------------------------------------------------------
 // This function runs the pydnet model
@@ -671,23 +515,11 @@ void TflitePydnet(void* pData)
     tflite::ops::builtin::BuiltinOpResolver  resolver;
     tflite::label_image::Settings* s         = NULL;
     TFliteThreadData* pThreadData            = (TFliteThreadData*)pData;
-    cv::Mat*  pRgbImage[MAX_EXT_MESSAGES];
+    cv::Mat*  rgbImage                      = new cv::Mat();
     cv::Mat resizedImage                     = cv::Mat();
-    TcpServer* pTcpServer                    = pThreadData->pTcpServer;
-    pipe_info_t tflite_pipe                  = {"tflite", MPA_TFLITE_PATH, "camera", "voxl-tflite-server", 16*1024*1024, getpid()};    
+    pipe_info_t tflite_pipe                  = {"tflite", MPA_TFLITE_PATH, "camera_image_metadata_t", "voxl-tflite-server", 16*1024*1024, 0};    
 
-    if (pTcpServer != NULL)
-    {
-        for (int i = 0; i < MAX_EXT_MESSAGES; i++)
-        {
-            pRgbImage[i] = new cv::Mat();
-        }
-    }
-    else
-    {
-        pRgbImage[0] = new cv::Mat();
-        pipe_server_create(OUTPUT_ID_RGB_IMAGE, tflite_pipe, 0);
-    }
+    pipe_server_create(OUTPUT_ID_RGB_IMAGE, tflite_pipe, 0);
 
     s = new tflite::label_image::Settings;
 
@@ -711,7 +543,7 @@ void TflitePydnet(void* pData)
 
     if (!s->model_name.c_str())
     {
-        LOG(ERROR) << "no model file name\n";
+        VOXL_LOG_ERROR("no model file name\n");
         exit(-1);
     }
 
@@ -719,43 +551,24 @@ void TflitePydnet(void* pData)
 
     if (!model)
     {
-        LOG(FATAL) << "\nFailed to mmap model " << s->model_name << "\n";
+        VOXL_LOG_FATAL("Failed to mmap model %s\n", s->model_name.c_str());
         exit(-1);
     }
     s->model = model.get();
-    LOG(INFO) << "\nLoaded model " << s->model_name << "\n";
+    VOXL_LOG_INFO("Loaded model %s\n", s->model_name.c_str());
     model->error_reporter();
-    LOG(INFO) << "Resolved reporter\n";
+    VOXL_LOG_INFO("Resolved reporter\n");
     tflite::InterpreterBuilder(*model, resolver)(&interpreter);
 
     if (!interpreter)
     {
-        LOG(FATAL) << "Failed to construct interpreter\n";
+        VOXL_LOG_FATAL("FATAL: Failed to construct interpreter\n");
         exit(-1);
     }
 
     interpreter->UseNNAPI(s->old_accel);
     interpreter->SetAllowFp16PrecisionForFp32(s->allow_fp16);
 
-    if (s->verbose)
-    {
-        LOG(INFO) << "tensors sizee: " << interpreter->tensors_size() << "\n";
-        LOG(INFO) << "nodes size: " << interpreter->nodes_size() << "\n";
-        LOG(INFO) << "inputs: " << interpreter->inputs().size() << "\n";
-        LOG(INFO) << "input(0) name: " << interpreter->GetInputName(0) << "\n";
-
-        int t_size = interpreter->tensors_size();
-
-        for (int i = 0; i < t_size; i++)
-        {
-            if (interpreter->tensor(i)->name)
-              LOG(INFO) << i << ": " << interpreter->tensor(i)->name << ", "
-                        << interpreter->tensor(i)->bytes << ", "
-                        << interpreter->tensor(i)->type << ", "
-                        << interpreter->tensor(i)->params.scale << ", "
-                        << interpreter->tensor(i)->params.zero_point << "\n";
-        }
-    }
 
     if (s->number_of_threads != -1)
     {
@@ -764,7 +577,7 @@ void TflitePydnet(void* pData)
 
     if (interpreter->AllocateTensors() != kTfLiteOk)
     {
-        LOG(FATAL) << "Failed to allocate tensors!";
+        VOXL_LOG_FATAL("Failed to allocate tensors!\n");
     }
 
     TfLiteIntArray* dims = interpreter->tensor(interpreter->inputs()[0])->dims;
@@ -778,21 +591,12 @@ void TflitePydnet(void* pData)
 
     for (const auto& delegate : delegates_)
     {
-        if (interpreter->ModifyGraphWithDelegate(delegate.second.get()) != kTfLiteOk)
-        {
-            LOG(FATAL) << "Failed to apply " << delegate.first << " delegate\n";
-            break;
-        }
-        else
-        {
-            LOG(INFO) << "Applied " << delegate.first << " delegate ";
-            break;
-        }
+        interpreter->ModifyGraphWithDelegate(delegate.second.get());
     }
 
     if (interpreter->AllocateTensors() != kTfLiteOk)
     {
-        LOG(FATAL) << "Failed to allocate tensors!";
+        VOXL_LOG_FATAL("Failed to allocate tensors!\n");
     }
 
     modelImageHeight   = dims->data[1];
@@ -821,7 +625,7 @@ void TflitePydnet(void* pData)
 
     // Inform the camera frames receiver that tflite processing is ready to receive frames and start processing
     pThreadData->tfliteReady = true;
-    fprintf(stderr, "\n------Pydnet model required image width: %d height: %d channels:%d",
+    VOXL_LOG_ERROR("------Pydnet model required image width: %d height: %d channels:%d\n",
             modelImageWidth, modelImageHeight, modelImageChannels);
 
     cv::Mat _input;
@@ -849,7 +653,7 @@ void TflitePydnet(void* pData)
         numFrames++;
 
         TFLiteMessage* pTFLiteMessage           = &pThreadData->pMsgQueue->queue[queueProcessIdx];
-        fprintf(stderr, "\n------Popping index %d frame %d ...... Queue size: %d",
+        VOXL_LOG_ERROR("------Popping index %d frame %d ...... Queue size: %d\n",
                 queueProcessIdx, pTFLiteMessage->metadata.frame_id,
                 abs(pThreadData->pMsgQueue->queueInsertIdx - queueProcessIdx));
 
@@ -900,10 +704,6 @@ void TflitePydnet(void* pData)
         interpreter->Invoke();
 
         gettimeofday(&stop_time, nullptr);
-        LOG(INFO) << "GPU invoked \n";
-        LOG(INFO) << "average GPU model execution time: "
-                  << (get_us(stop_time) - get_us(start_time)) / (s->loop_count * 1000)
-                  << " ms \n";
 
         totalGpuExecutionTimemsecs += (get_us(stop_time) - get_us(start_time)) / 1000;
 
@@ -925,53 +725,26 @@ void TflitePydnet(void* pData)
         cv::Mat holder_img;
         applyColorMap(_mask, map_img, cv::COLORMAP_PLASMA); 
         cv::resize(map_img, holder_img, cv::Size(640, 480), 0, 0, cv::INTER_NEAREST); 
-        cv::cvtColor(holder_img, *pRgbImage[g_sendTcpInsertdx], CV_BGR2RGB);      
+        cv::cvtColor(holder_img, *rgbImage, CV_BGR2RGB);      
 
-        
+        pImageMetadata.format         = IMAGE_FORMAT_RGB;   
+        pImageMetadata.size_bytes     = (imageWidth * imageHeight * 3); 
+        pImageMetadata.stride         = (imageWidth * 3); 
+        pipe_server_write_camera_frame(OUTPUT_ID_RGB_IMAGE, pImageMetadata, (char*)rgbImage->data);;
 
-#ifdef FRAME_DUMP
-                char filename[128];
-                {
-                    sprintf(filename, "/data/misc/camera/frame_%d.bmp", frameNumber);
-                    cv::imwrite(filename, *pRgbImage[g_sendTcpInsertdx]);
-                }
-#endif // FRAME_DUMP      
-
-        LOG(INFO) << "\n\n";
-
-        if (pTcpServer == NULL) 
-        {
-            pImageMetadata.format         = IMAGE_FORMAT_RGB;   
-            pImageMetadata.size_bytes     = (imageWidth * imageHeight * 3); 
-            pImageMetadata.stride         = (imageWidth * 3); 
-            pipe_server_write_camera_frame(OUTPUT_ID_RGB_IMAGE, pImageMetadata, (char*)pRgbImage[g_sendTcpInsertdx]->data);;
-        }
         queueProcessIdx = ((queueProcessIdx + 1) % MAX_MESSAGES); 
      }
 
-
-#ifdef STATS_DUMP
-    struct timeval end_time;
-    gettimeofday(&end_time, nullptr);
-    LOG(INFO) << "\n\nAverage execution time per frame in msecs: ";
-    LOG(INFO) << ((get_us(end_time) - get_us(begin_time)) / 1000) / numFrames << " ms \n";
-    LOG(INFO) << "Average resize time per frame msecs: " << totalResizeTimemsecs / numFrames << "\n";
-    LOG(INFO) << "Average yuv-->rgb time per frame in msecs: " << totalYuvRgbTimemsecs / numFrames << "\n";
-    LOG(INFO) << "\n\n ==== Average GPU model execution time per frame: " << totalGpuExecutionTimemsecs / numFrames << " msecs\n";
-#endif // STATS_DUMP
 
     if (s != NULL)
     {
         delete s;
     }
 
-    if (pTcpServer == NULL)
+    if (rgbImage != NULL)
     {
-        if (pRgbImage[0] != NULL)
-        {
-            delete pRgbImage[0];
-            pRgbImage[0] = NULL;
-        }
+        delete rgbImage;
+        rgbImage = NULL;
     }
     pipe_server_close_all();
 }  
@@ -994,14 +767,5 @@ void* ThreadTflitePydnet(void* pData)
 void* ThreadMobileNet(void* pData)
 {
     tflite::label_image::TFliteMobileNet(pData);
-    return NULL;
-}
-
-// -----------------------------------------------------------------------------------------------------------------------------
-// This thread send the image data
-// -----------------------------------------------------------------------------------------------------------------------------
-void* ThreadSendImageData(void* pData)
-{
-    tflite::label_image::SendImageData(pData);
     return NULL;
 }

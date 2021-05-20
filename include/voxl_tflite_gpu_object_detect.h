@@ -42,13 +42,9 @@
 //------------------------------------------------------------------------------------------------------------------------------
 struct TFLiteInitData
 {
-    TcpServer* pTcpServer;      ///< Tcp server
-    int        numFramesDump;   ///< Number of frames to dump
-    char*      pIPAddress;      ///< Ip address
     char*      pDnnModelFile;   ///< Dnn model
     char*      pLabelsFile;     ///< Dnn labels file
     int        camera;          ///< Camera we want to use - 0 for hires, 1 for tracking
-    int        frame_skip;      ///< Number of frames to skip before running model
     bool       verbose;         ///< Verbose debug output - default off
 };
 
@@ -60,6 +56,9 @@ class TFliteModelExecute
 public:
     TFliteModelExecute(TFLiteInitData* pInitData);
     ~TFliteModelExecute();
+
+    void pause();
+    void resume();
 
     // Callback called by the input interface when it receives the image data
     void PipeImageData(camera_image_metadata_t meta, uint8_t* pImagePixels);

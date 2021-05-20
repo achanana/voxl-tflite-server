@@ -43,7 +43,6 @@
 #include <condition_variable>
 #include "common_defs.h"
 #include "debug_log.h"
-#include "tcp_utils.hpp"
 #include "voxl_tflite_gpu_object_detect.h"
 
 volatile int            g_keepRunning = 1;
@@ -88,19 +87,15 @@ int ErrorCheck(int numInputsScanned, const char* pOptionName)
 // -----------------------------------------------------------------------------------------------------------------------------
 int ParseArgs(int         argc,
               char* const pArgv[],
-              int*        pDumpPreviewFrames,
-              char*       pIPAddress,
               char*       pDnnModelFile,
               char*       pLabelsFile,
               int*        pCamera,
-              int*        pFrameSkip,
               bool*       verbose)
 {
     static struct option LongOptions[] =
     {
-        {"dumppreview",  required_argument, 0, 'd'},
-        {"ipaddress",    required_argument, 0, 'i'},
         {"dnnmodel",     required_argument, 0, 'm'},
+        {"camera",       required_argument, 0, 'c'},
         {"labels",       required_argument, 0, 'l'},
         {"help",         no_argument,       0, 'h'},
         {0, 0, 0, 0                               }
@@ -111,53 +106,28 @@ int ParseArgs(int         argc,
     int status           = 0;
     int option;
 
-    while ((status == 0) && (option = getopt_long_only (argc, pArgv, ":f:c:d:i:m:l:hv", &LongOptions[0], &optionIndex)) != -1)
+    while ((status == 0) && (option = getopt_long_only (argc, pArgv, ":c:m:l:hv", &LongOptions[0], &optionIndex)) != -1)
     {
         switch(option)
         {
-            case 'f':
-                numInputsScanned = sscanf(optarg, "%d", pFrameSkip);
-                if (ErrorCheck(numInputsScanned, LongOptions[optionIndex].name) != 0)
-                {
-                    printf("\nNo frame skip parameter specified");
-                    status = -EINVAL;
-                }
-                break;
             case 'v':
                 *verbose = true;
                 break;
             case 'c':
                 numInputsScanned = sscanf(optarg, "%d", pCamera);
-                if (ErrorCheck(numInputsScanned, LongOptions[optionIndex].name) != 0)
+                if (!strcmp(optarg, "tracking"))
                 {
-                    printf("\nNo camera specified");
-                    status = -EINVAL;
+                    *pCamera = 1;
                 }
-                if (*pCamera > 1 || *pCamera < 0){
-                    printf("\nInvalid camera option specified");
-                    status = -EINVAL;
-                }
-                break;
-            case 'd':
-                numInputsScanned = sscanf(optarg, "%d", pDumpPreviewFrames);
-
-                if (ErrorCheck(numInputsScanned, LongOptions[optionIndex].name) != 0)
+                else if (!strcmp(optarg, "hires"))
                 {
-                    printf("\nNo preview dump frames specified");
-                    status = -EINVAL;
+                    *pCamera = 0;
                 }
-
-                break;
-
-            case 'i':
-                numInputsScanned = sscanf(optarg, "%s", pIPAddress);
-
-                if (ErrorCheck(numInputsScanned, LongOptions[optionIndex].name) != 0)
+                else
                 {
-                    printf("\nNo IP address specified");
+                    printf("Invalid camera option specified: %s\n", optarg);
                     status = -EINVAL;
                 }
-
                 break;
 
             case 'm':
@@ -165,7 +135,7 @@ int ParseArgs(int         argc,
 
                 if (ErrorCheck(numInputsScanned, LongOptions[optionIndex].name) != 0)
                 {
-                    printf("\nNo DNN model filename specified");
+                    printf("No DNN model filename specified\n");
                     status = -EINVAL;
                 }
 
@@ -178,7 +148,7 @@ int ParseArgs(int         argc,
                     strcpy(pDnnModelFile, MobileNetModel);
                 }
 
-                fprintf(stderr, "------Selected model: %s", pDnnModelFile);
+                fprintf(stderr, "------Selected model: %s\n", pDnnModelFile);
 
                 break;
 
@@ -187,7 +157,7 @@ int ParseArgs(int         argc,
 
                 if (ErrorCheck(numInputsScanned, LongOptions[optionIndex].name) != 0)
                 {
-                    printf("\nNo DNN model labels filename specified");
+                    printf("No DNN model labels filename specified\n");
                     status = -EINVAL;
                 }
 
@@ -200,7 +170,7 @@ int ParseArgs(int         argc,
             // Unknown argument
             case '?':
             default:
-                printf("\nInvalid argument passed!");
+                printf("Invalid argument passed!\n");
                 status = -EINVAL;
                 break;
         }
@@ -214,18 +184,31 @@ int ParseArgs(int         argc,
 // -----------------------------------------------------------------------------------------------------------------------------
 void PrintHelpMessage()
 {
-    printf("\n\nCommand line arguments are as follows:\n");
-    printf("\n-c : Camera to use for object detection: 0 for hires, 1 for tracking. (Default: hires)");
-    printf("\n-f : Number of frames to skip before running the model. (Default: 0)");
-    printf("\n-v : Verbose debug output (Default: Off)");
-    printf("\n-i : IP address of the VOXL to stream the object detected RGB image");
-    printf("\n\t : -i 0 to disable streaming");
-    printf("\n-m : Deep learning model filename (Default: /bin/dnn/mobilenet_v1_ssd_coco_labels.tflite)");
-    printf("\n-l : Class labels filename (Default: /bin/dnn/mobilenet_v1_ssd_coco_labels.txt)");
-    printf("\n-d : Dump 'n' preview frames (Default is 0)");
-    printf("\n-h : Print this help message");
-    printf("\n\nFor example: voxl-mpa-tflite-gpu -i 192.168.1.159\n\n");
+    printf("\nCommand line arguments are as follows:\n\n");
+    printf("-c <camera>     : Camera to use for object detection: hires or tracking. (Default: tracking)\n");
+    printf("-v              : Verbose debug output (Default: Off)\n");
+    printf("-m <file>       : Deep learning model filename (Default: /bin/dnn/mobilenet_v1_ssd_coco_labels.tflite)\n");
+    printf("-l <file>       : Class labels filename (Default: /bin/dnn/mobilenet_v1_ssd_coco_labels.txt)\n");
+    printf("-h              : Print this help message\n");
 }
+
+static void _server_connect_cb(int ch, int client_id, char* name, void* context){
+
+    if(pipe_server_get_num_clients(0) == 1){
+        ((TFliteModelExecute *)context)->resume();
+    }
+
+}
+
+
+static void _server_disconnect_cb(int ch, int client_id, char* name, void* context){
+
+    if(pipe_server_get_num_clients(0) == 0){
+        ((TFliteModelExecute *)context)->pause();
+    }
+
+}
+
 
 //------------------------------------------------------------------------------------------------------------------------------
 // Main entry point for the application
@@ -233,21 +216,20 @@ void PrintHelpMessage()
 int main(int argc, char **argv)
 {
 
-    fprintf(stderr, "test\n");
-
-    TcpServer*  pTcpServer         = NULL;
     int         status             = 0;
-    char        ipAddress[256]     = "192.168.1.159"; //<@todo Get ip address programatically
     char        dnnModelFile[256]  = "/usr/bin/dnn/mobilenet_v1_ssd_coco_labels.tflite";
     char        dnnLabelsFile[256] = "/usr/bin/dnn/mobilenet_v1_ssd_coco_labels.txt";
-    int         numFramesDump      = 0;
-    int         camera             = 0;
-    int         frame_skip         = 0;
+    int         camera             = 1;
     bool        verbose            = 0;
+
 
     TFLiteInitData initData;
 
-    status = ParseArgs(argc, argv, &numFramesDump, &ipAddress[0], &dnnModelFile[0], &dnnLabelsFile[0], &camera, &frame_skip, &verbose);
+    status = ParseArgs(argc, argv, &dnnModelFile[0], &dnnLabelsFile[0], &camera, &verbose);
+
+
+    Debug::SetDebugLevel(verbose ? DebugLevel::ALL : DebugLevel::ERROR);
+
 
     if (status != 0)
     {
@@ -255,40 +237,25 @@ int main(int argc, char **argv)
     }
     else
     {
-        ipAddress[0] = '0'; ///<@todo Remove the tcp option
 
-        initData.numFramesDump = numFramesDump;
         initData.pDnnModelFile = &dnnModelFile[0];
         initData.pLabelsFile   = &dnnLabelsFile[0];
-        initData.pIPAddress    = &ipAddress[0];
         initData.camera        = camera;
-        initData.frame_skip    = frame_skip;
         initData.verbose       = verbose;
-
-        if (ipAddress[0] == '0')
-        {
-            initData.pTcpServer = NULL;
-        }
-        else
-        {
-            const int portNum = 5556;
-
-            pTcpServer          = new TcpServer;
-            initData.pTcpServer = pTcpServer;
-
-            initData.pTcpServer->create_socket(initData.pIPAddress, portNum);
-            initData.pTcpServer->bind_socket();
-            initData.pTcpServer->connect_client();
-        }
 
         signal(SIGINT, CtrlCHandler);
 
-        VOXL_LOG_INFO("\n------ Hello Tensorflow-Lite-Gpu!\n\n");
+        VOXL_LOG_FATAL("\n------VOXL TFLite Server------\n\n");
 
         TFliteModelExecute* pTFliteModelExecute = new TFliteModelExecute(&initData);
 
         if (pTFliteModelExecute != NULL)
         {
+
+
+            pipe_server_set_disconnect_cb(0, _server_disconnect_cb, pTFliteModelExecute);
+            pipe_server_set_connect_cb(0, _server_connect_cb, pTFliteModelExecute);
+
             // The apps keeps running till Ctrl+C is pressed to terminate the program
             while (g_keepRunning)
             {
@@ -298,15 +265,10 @@ int main(int argc, char **argv)
                 sleep(2);
             }
 
-            VOXL_LOG_INFO("\n------ Stopping the application");
+            VOXL_LOG_FATAL("------ Stopping the application\n");
             delete pTFliteModelExecute;
 
-            if (pTcpServer != NULL)
-            {
-                delete pTcpServer;
-            }
-
-            VOXL_LOG_INFO("\n\n------ Done: application exited gracefully\n");
+            VOXL_LOG_FATAL("\n------ Done: application exited gracefully\n\n");
         }
         else
         {

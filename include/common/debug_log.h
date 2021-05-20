@@ -87,19 +87,10 @@ private:
 // Add file line number to the message
 #define LOG_LOCATION "(" __FILE__ ":" TOSTRING(__LINE__) "): "
 
-///<@todo Instead of printing add option to redirect to a log file instead
-#ifdef ENABLE_DEBUG_LOGS
 #define VOXL_LOG_ALL(x...) 	   Debug::DebugPrint(DebugLevel::ALL,     LOG_LOCATION, x)
 #define VOXL_LOG_INFO(x...) 	   Debug::DebugPrint(DebugLevel::INFO,    LOG_LOCATION, x)
 #define VOXL_LOG_WARNING(x...)  Debug::DebugPrint(DebugLevel::WARNING, LOG_LOCATION, x)
 #define VOXL_LOG_ERROR(x...)    Debug::DebugPrint(DebugLevel::ERROR,   LOG_LOCATION, x)
 #define VOXL_LOG_FATAL(x...)    Debug::DebugPrint(DebugLevel::FATAL,   LOG_LOCATION, x)
-#else // #ifdef ENABLE_DEBUG_LOGS
-#define VOXL_LOG_ALL(x...)
-#define VOXL_LOG_INFO(x...)
-#define VOXL_LOG_WARNING(x...)
-#define VOXL_LOG_ERROR(x...)   Debug::DebugPrint(DebugLevel::ERROR,   LOG_LOCATION, x)
-#define VOXL_LOG_FATAL(x...)   Debug::DebugPrint(DebugLevel::FATAL,   LOG_LOCATION, x)
-#endif // #ifdef ENABLE_DEBUG_LOGS
 
 #endif // #ifdef VOXL_DEBUG_H

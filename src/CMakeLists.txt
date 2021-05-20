@@ -33,7 +33,7 @@
 cmake_minimum_required(VERSION 3.3)
 
 set(CMAKE_BUILD_TYPE "Release")
-set(CMAKE_CXX_FLAGS "-std=c++11 -Wno-attributes -march=armv8-a -DENABLE_DEBUG_LOGS")
+set(CMAKE_CXX_FLAGS "-std=c++11 -Wno-attributes -march=armv8-a ")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g -pthread -Wall -fPIC")
 set(PROJECT_NAME voxl-tflite-server)
 

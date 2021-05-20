@@ -67,7 +67,6 @@ struct TFLiteMsgQueue
 typedef struct TFliteThreadData
 {
     TFLiteMsgQueue*         pMsgQueue;      ///< Points to circular message queue
-    TcpServer*              pTcpServer;     ///< TCP Server for streaming image
     char*                   pDnnModelFile;  ///< Dnn Model filename
     char*                   pLabelsFile;    ///< DNN Model labels filename
     volatile bool           stop;           ///< Indication for the thread to terminate
@@ -77,7 +76,6 @@ typedef struct TFliteThreadData
     std::mutex              condMutex;      ///< Mutex
     std::condition_variable condVar;        ///< Condition variable
     int                     camera;         ///< Camera indicator - 0 for hires, 1 for tracking
-    int                     frame_skip;     ///< Number of frames to skip before running model 
     bool                    verbose;        ///< Verbose debug output
 } TFliteThreadData;
 

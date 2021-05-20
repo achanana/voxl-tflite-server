@@ -63,6 +63,8 @@ extern void* ThreadSendImageData(void* data);
 extern char* PydnetModel;
 extern char* MobileNetModel;
 
+const char *pipeName;
+
 static void _cam_helper_cb(__attribute__((unused))int ch, 
                                                   camera_image_metadata_t meta,
                                                   char* frame,
@@ -76,14 +78,12 @@ TFliteModelExecute::TFliteModelExecute(TFLiteInitData* pInitData)
     Status             status       = S_OK;
     bool               isPydnet     = false;
 
-    m_tfliteThreadData.pTcpServer    = pInitData->pTcpServer;
     m_tfliteThreadData.pDnnModelFile = pInitData->pDnnModelFile;
     m_tfliteThreadData.pLabelsFile   = pInitData->pLabelsFile;
     m_tfliteThreadData.stop          = false;
     m_tfliteThreadData.pMsgQueue     = &m_tfliteMsgQueue;
     m_tfliteMsgQueue.queueInsertIdx  = 0;
     m_tfliteThreadData.camera        = pInitData->camera;
-    m_tfliteThreadData.frame_skip    = pInitData->frame_skip;
     m_tfliteThreadData.verbose       = pInitData->verbose;
 
     // Start the thread that will run the tensorflow lite model to detect objects in the camera frames. This thread wont
@@ -103,7 +103,7 @@ TFliteModelExecute::TFliteModelExecute(TFLiteInitData* pInitData)
     }
     else
     {
-        VOXL_LOG_FATAL("\n------voxl-mpa-tflite: FATAL: Unsupported model provided!!");
+        VOXL_LOG_FATAL("------voxl-mpa-tflite: FATAL: Unsupported model provided!!\n");
         status = S_ERROR;
     }
 
@@ -111,29 +111,11 @@ TFliteModelExecute::TFliteModelExecute(TFLiteInitData* pInitData)
     {
         if (isPydnet == false)
         {
-            if (pInitData->pTcpServer != NULL)
-            {
-                pthread_create(&(m_tfliteThreadData.threadSendImg), &tfliteAttr, ThreadSendImageData, &m_tfliteThreadData);
-            }
 
             pthread_attr_destroy(&tfliteAttr);
 
             usleep(2000000);
 
-            // TensorflowMessage* pTensorflowMessage = &m_tfliteMsgQueue[pImageMetadata->frame_id % MAX_MESSAGES];
-
-            // pTensorflowMessage->pImagePixels = pImagePixels;
-            // pTensorflowMessage->pMetadata    = pImageMetadata;
-
-            // // Mutex is required for msgQueue access from here and from within the thread wherein it will be de-queued
-            // pthread_mutex_lock(&m_tfliteThreadData.mutex);
-            // // Queue up work for the result thread "TensorflowThread"
-            // m_tfliteThreadData.msgQueue.push_back((void*)pTensorflowMessage);
-            // fprintf(stderr, "\n------Queue size: %d", m_tfliteThreadData.msgQueue.size());
-            // pthread_cond_signal(&m_tfliteThreadData.cond);
-            // pthread_mutex_unlock(&m_tfliteThreadData.mutex);
-
-            const char *pipeName;
             if (pInitData->camera == 0){
                 pipeName = "/run/mpa/hires_preview/";
                 VOXL_LOG_ERROR("Using Camera: hires_preview\n");
@@ -142,13 +124,6 @@ TFliteModelExecute::TFliteModelExecute(TFLiteInitData* pInitData)
                 pipeName = "/run/mpa/tracking/";
                 VOXL_LOG_ERROR("Using Camera: tracking\n");
             }
-
-            pipe_client_set_camera_helper_cb(0, _cam_helper_cb, this);
-            pipe_client_open(0,
-                             (char*) pipeName,
-                             "voxl-tflite-server",
-                             CLIENT_FLAG_EN_CAMERA_HELPER,
-                             0);
         }
     }
 }
@@ -158,6 +133,8 @@ TFliteModelExecute::TFliteModelExecute(TFLiteInitData* pInitData)
 //------------------------------------------------------------------------------------------------------------------------------
 TFliteModelExecute::~TFliteModelExecute()
 {
+
+
     pipe_client_close_all();
 
     m_tfliteThreadData.stop        = true;
@@ -167,12 +144,6 @@ TFliteModelExecute::~TFliteModelExecute()
 
     pthread_join(m_tfliteThreadData.thread, NULL);
 
-    if (m_tfliteThreadData.pTcpServer != NULL)
-    {
-        pthread_join(m_tfliteThreadData.threadSendImg, NULL);
-    }
-
-    delete this;
 }
 
 //------------------------------------------------------------------------------------------------------------------------------
@@ -200,6 +171,23 @@ void TFliteModelExecute::PipeImageData(camera_image_metadata_t meta, uint8_t* pI
     }
 }
 
+void TFliteModelExecute::pause(){
+
+    pipe_client_close_all();
+
+}
+
+void TFliteModelExecute::resume(){
+
+    pipe_client_set_camera_helper_cb(0, _cam_helper_cb, this);
+    pipe_client_open(0,
+                     (char*) pipeName,
+                     "voxl-tflite-server",
+                     CLIENT_FLAG_EN_CAMERA_HELPER,
+                     0);
+
+}
+
 // camera helper callback whenever a frame arrives
 static void _cam_helper_cb(__attribute__((unused))int ch, 
                                                   camera_image_metadata_t meta,
@@ -207,8 +195,8 @@ static void _cam_helper_cb(__attribute__((unused))int ch,
                                                   void* context)
 {
 
-    //Skip some frames and only process if someone is listening
-    if (!(meta.frame_id % CAMERA_NTH_FRAME) && pipe_server_get_num_clients(0) > 0)
+    //Skip some frames
+    if (!(meta.frame_id % CAMERA_NTH_FRAME))
     {
         ((TFliteModelExecute*) context)->PipeImageData(meta, (uint8_t*) frame);
     }
