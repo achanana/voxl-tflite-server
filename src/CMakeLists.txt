@@ -32,9 +32,8 @@
 ################################################################################
 cmake_minimum_required(VERSION 3.3)
 
-set(CMAKE_LINK_DEPENDS_NO_SHARED)
 set(CMAKE_BUILD_TYPE "Release")
-set(CMAKE_CXX_FLAGS "-std=c++11 -shared -Wno-attributes -march=armv8-a -DENABLE_DEBUG_LOGS -fPIC")
+set(CMAKE_CXX_FLAGS "-std=c++11 -Wno-attributes -march=armv8-a -DENABLE_DEBUG_LOGS")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g -pthread -Wall -fPIC")
 set(PROJECT_NAME voxl-tflite-server)
 
@@ -43,7 +42,6 @@ add_executable(${PROJECT_NAME} ${all_src_files})
 
 include_directories(
   /usr/include/opencv4/
-  /usr/include/CL
   ../include
   ../include/common
   ../include/gpu
@@ -67,9 +65,15 @@ target_link_libraries(${PROJECT_NAME}
   -L/usr/lib64/
   tensorflow-lite
   benchmark-lib
+  absl_stacktrace
+  absl_synchronization
+  absl_symbolize
+  absl_debugging_internal
+  absl_demangle_internal
+  absl_dynamic_annotations  
   glib-2.0
   dl
-  /usr/lib64/libstdc++.so.6.0.20
+  stdc++
   pthread
   z
   cutils

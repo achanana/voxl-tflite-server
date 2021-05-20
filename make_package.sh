@@ -40,7 +40,10 @@ rm -rf $IPK_NAME
 ## copy useful files into data directory
 ################################################################################
 
-cd build64 && sudo make DESTDIR=../ipk/data PREFIX=/usr install && cd -
+cd build && sudo make DESTDIR=../ipk/data PREFIX=/usr install && cd -
+
+sudo mkdir $DATA_DIR/usr/bin/dnn/
+sudo cp -r ./dnn/*  $DATA_DIR/usr/bin/dnn/ 2>/dev/null
 
 ################################################################################
 # pack the control, data, and final ipk archives

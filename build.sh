@@ -1,16 +1,24 @@
 #!/bin/bash
+# Copyright 2017 The TensorFlow Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ==============================================================================
 
-TOOLCHAIN64="/opt/cross_toolchain/aarch64-gnu-4.9.toolchain.cmake"
+set -x
+set -e
 
+mkdir -p build
+cd build
+cmake -DCMAKE_TOOLCHAIN_FILE=/opt/cross_toolchain/aarch64-gnu-4.9.toolchain.cmake -DCMAKE_BUILD_TYPE=RELEASE -DENABLE_NEON=ON -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS} -std=c++11 -march=armv8-a" ../src
 
-mkdir -p build64
-cd build64
-cmake -DCMAKE_TOOLCHAIN_FILE=${TOOLCHAIN64} -DCMAKE_BUILD_TYPE=RELEASE -DENABLE_NEON=ON ../
-make -j4 TARGET=aarch64 TARGET_TOOLCHAIN_PREFIX=aarch64-linux-gnu-
-cd ../
-
-
-
-
-
-
+make -j 4 TARGET=aarch64 TARGET_TOOLCHAIN_PREFIX=aarch64-linux-gnu-

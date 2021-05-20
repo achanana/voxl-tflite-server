@@ -424,7 +424,7 @@ void TFliteMobileNet(void* pData)
     uint32_t totalYuvRgbTimemsecs = 0;
     uint32_t totalGpuExecutionTimemsecs = 0;
     uint32_t numFrames = 0;
-    camera_image_metadata_t pImageMetadata;
+    camera_image_metadata_t meta;
     uint8_t* pImagePixels;
 
     gettimeofday(&begin_time, nullptr);
@@ -452,18 +452,18 @@ void TFliteMobileNet(void* pData)
         TFLiteMessage* pTFLiteMessage           = &pThreadData->pMsgQueue->queue[queueProcessIdx];
         if (verbose){
             fprintf(stderr, "\n------Popping index %d frame %d ...... Queue size: %d",
-                queueProcessIdx, pTFLiteMessage->pMetadata->frame_id,
+                queueProcessIdx, pTFLiteMessage->metadata.frame_id,
                 abs(pThreadData->pMsgQueue->queueInsertIdx - queueProcessIdx));
         }
         
         ///<@todo Create a wrapper for this structure
-        pImageMetadata = *pTFLiteMessage->pMetadata;
-        pImagePixels   = pTFLiteMessage->pImagePixels;
+        meta = pTFLiteMessage->metadata;
+        pImagePixels   = pTFLiteMessage->imagePixels;
 
-        int imageWidth    = pImageMetadata.width;
-        int imageHeight   = pImageMetadata.height;
+        int imageWidth    = meta.width;
+        int imageHeight   = meta.height;
         int imageChannels = 3;
-        int frameNumber   = pImageMetadata.frame_id;
+        int frameNumber   = meta.frame_id;
 
         gettimeofday(&yuvrgb_start_time, nullptr);
         if (skip == 0 || numFrames % skip == 0){
@@ -619,11 +619,11 @@ void TFliteMobileNet(void* pData)
         if (pTcpServer == NULL)
         {
             ///<@todo Handle different format types
-            pImageMetadata.format         = IMAGE_FORMAT_RGB; 
-            pImageMetadata.size_bytes     = (imageHeight * imageWidth * 3);
-            pImageMetadata.stride         = (modelImageWidth * 3);
+            meta.format         = IMAGE_FORMAT_RGB; 
+            meta.size_bytes     = (imageHeight * imageWidth * 3);
+            meta.stride         = (modelImageWidth * 3);
             if( pRgbImage[g_sendTcpInsertdx]->data != NULL){
-                    pipe_server_write_camera_frame(OUTPUT_ID_RGB_IMAGE, pImageMetadata, (char*)pRgbImage[g_sendTcpInsertdx]->data);
+                    pipe_server_write_camera_frame(OUTPUT_ID_RGB_IMAGE, meta, (char*)pRgbImage[g_sendTcpInsertdx]->data);
             }
         }
 
@@ -850,12 +850,12 @@ void TflitePydnet(void* pData)
 
         TFLiteMessage* pTFLiteMessage           = &pThreadData->pMsgQueue->queue[queueProcessIdx];
         fprintf(stderr, "\n------Popping index %d frame %d ...... Queue size: %d",
-                queueProcessIdx, pTFLiteMessage->pMetadata->frame_id,
+                queueProcessIdx, pTFLiteMessage->metadata.frame_id,
                 abs(pThreadData->pMsgQueue->queueInsertIdx - queueProcessIdx));
 
         ///<@todo Create a wrapper for this structure
-        camera_image_metadata_t pImageMetadata = *pTFLiteMessage->pMetadata;
-        uint8_t*                 pImagePixels   = pTFLiteMessage->pImagePixels;
+        camera_image_metadata_t pImageMetadata =  pTFLiteMessage->metadata;
+        uint8_t*                 pImagePixels   = pTFLiteMessage->imagePixels;
 
         int imageWidth    = pImageMetadata.width;
         int imageHeight   = pImageMetadata.height;
@@ -974,9 +974,11 @@ void TflitePydnet(void* pData)
         }
     }
     pipe_server_close_all();
-}  // namespace tflite
-}
-}
+}  
+
+
+} // namespace labelimage
+} // namespace tflite
 // -----------------------------------------------------------------------------------------------------------------------------
 // This thread runs the pydnet model
 // -----------------------------------------------------------------------------------------------------------------------------

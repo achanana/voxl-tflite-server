@@ -35,11 +35,7 @@
 #define TFLITE_GPU_OBJECT_DETECT
 
 #include "common_defs.h"
-#include "input_interface_named_pipe.h"
 #include "voxl_tflite_interface.h"
-
-// Forward decl
-struct camera_image_metadata_t;
 
 //------------------------------------------------------------------------------------------------------------------------------
 // Initialization data
@@ -62,23 +58,14 @@ struct TFLiteInitData
 class TFliteModelExecute
 {
 public:
-    static TFliteModelExecute* Create(TFLiteInitData* pInitData);
-    void Run();
-    void Destroy();
+    TFliteModelExecute(TFLiteInitData* pInitData);
+    ~TFliteModelExecute();
 
     // Callback called by the input interface when it receives the image data
-    void PipeImageData(camera_image_metadata_t* pImageMetadata, uint8_t* pImagePixels);
+    void PipeImageData(camera_image_metadata_t meta, uint8_t* pImagePixels);
 
 private:
-    // Prevent direct instantiations and instead call Create and Destroy
-    TFliteModelExecute()  { }
-    ~TFliteModelExecute() { }
-    void Cleanup();
 
-    Status Initialize(TFLiteInitData* pInitData);
-
-    static const int32_t PipeIdHires = 0;       ///< Pipe Id Hires
-    CameraNamedPipe*     m_pInputPipeInterface; ///< Input named pipe interfaces
     TFliteThreadData     m_tfliteThreadData;    ///< Tflite thread data
     TFLiteMsgQueue       m_tfliteMsgQueue;      ///< Message queue to the TFLite thread
 };

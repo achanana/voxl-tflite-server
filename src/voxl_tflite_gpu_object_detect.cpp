@@ -48,10 +48,13 @@
 #include <vector>
 #include <list>
 #include <unistd.h>
+#include <modal_pipe_interfaces.h>
 
 #include "debug_log.h"
 #include "voxl_tflite_gpu_object_detect.h"
 #include "voxl_tflite_interface.h"
+
+#define CAMERA_NTH_FRAME 2 
 
 // Tensorflow thread
 extern void* ThreadMobileNet(void* data);
@@ -60,128 +63,17 @@ extern void* ThreadSendImageData(void* data);
 extern char* PydnetModel;
 extern char* MobileNetModel;
 
-// Global variables to this file only
-static TFliteModelExecute* g_pTFliteModelExecute = NULL;
-
-// Global function prototypes
-void PipeImageDataCb(camera_image_metadata_t* pImageMetadata, uint8_t* pImagePixels);
-
-//------------------------------------------------------------------------------------------------------------------------------
-// Callback to get the image data
-//------------------------------------------------------------------------------------------------------------------------------
-void PipeImageDataCb(camera_image_metadata_t* pImageMetadata, uint8_t* pImagePixels)
-{
-    g_pTFliteModelExecute->PipeImageData(pImageMetadata, pImagePixels);
-}
+static void _cam_helper_cb(__attribute__((unused))int ch, 
+                                                  camera_image_metadata_t meta,
+                                                  char* frame,
+                                                  void* context);
 
 //------------------------------------------------------------------------------------------------------------------------------
-// Perform any necessary clean up actions before the object gets destroyed
+// Initialize the object instance. 
 //------------------------------------------------------------------------------------------------------------------------------
-void TFliteModelExecute::Cleanup()
-{
-    if (m_pInputPipeInterface != NULL)
-    {
-        m_pInputPipeInterface->Destroy();
-        m_pInputPipeInterface = NULL;
-    }
-}
-
-//------------------------------------------------------------------------------------------------------------------------------
-// Destructor
-//------------------------------------------------------------------------------------------------------------------------------
-void TFliteModelExecute::Destroy()
-{
-    m_tfliteThreadData.stop        = true;
-    m_tfliteThreadData.tfliteReady = false;
-
-    m_tfliteThreadData.condVar.notify_all();
-
-    pthread_join(m_tfliteThreadData.thread, NULL);
-
-    if (m_tfliteThreadData.pTcpServer != NULL)
-    {
-        pthread_join(m_tfliteThreadData.threadSendImg, NULL);
-    }
-
-    Cleanup();
-    delete this;
-}
-
-//------------------------------------------------------------------------------------------------------------------------------
-// Process the image data
-//------------------------------------------------------------------------------------------------------------------------------
-void TFliteModelExecute::PipeImageData(camera_image_metadata_t* pImageMetadata, uint8_t* pImagePixels)
-{
-    if (m_tfliteThreadData.tfliteReady == true)
-    {
-        // char name[128];
-
-        // sprintf(&name[0], "/data/misc/camera/temp/myapp_frame_preview_%d.nv12", pImageMetadata->frame_id);
-        // FILE* fd = fopen(&name[0], "wb");
-        // fwrite(pImagePixels, pImageMetadata->size_bytes, 1, fd);
-        // fclose(fd);
-
-        int queueInsertIdx = m_tfliteMsgQueue.queueInsertIdx;
-        
-        // fprintf(stderr, "\n------voxl-mpa-tflite-gpu INFO: Received hires frame-%d: %d %d ... Index: %d",
-        //         pImageMetadata->frame_id, pImageMetadata->width, pImageMetadata->height, queueInsertIdx);
-
-        TFLiteMessage* pTFLiteMessage = &m_tfliteMsgQueue.queue[queueInsertIdx];
-
-        pTFLiteMessage->pImagePixels = pImagePixels;
-        pTFLiteMessage->pMetadata    = pImageMetadata;
-
-        m_tfliteMsgQueue.queueInsertIdx = ((queueInsertIdx + 1) % MAX_MESSAGES);
-        m_tfliteThreadData.condVar.notify_all();
-
-        // // Mutex is required for msgQueue access from here and from within the thread wherein it will be de-queued
-        // pthread_mutex_lock(&m_tfliteThreadData.mutex);
-        // // Queue up work for the result thread "TensorflowThread"
-        // m_tfliteThreadData.msgQueue.push((void*)pTFLiteMessage);
-
-        // TensorflowMessage* pTemp = (TensorflowMessage*)m_tfliteThreadData.msgQueue.front();
-        // fprintf(stderr, "\n------Queue size: %d ... Front frame: %d", m_tfliteThreadData.msgQueue.size(),
-        //         pTemp->pMetadata->frame_id);
-        // pthread_cond_signal(&m_tfliteThreadData.cond);
-        // pthread_mutex_unlock(&m_tfliteThreadData.mutex);
-    }
-}
-
-//------------------------------------------------------------------------------------------------------------------------------
-// Anything to do prior to running
-//------------------------------------------------------------------------------------------------------------------------------
-void TFliteModelExecute::Run()
-{
-}
-
-//------------------------------------------------------------------------------------------------------------------------------
-// Create an instance of the class, initialize and return the object instance. If there are any problems during initialization
-// will be result in the object not being instantiated
-//------------------------------------------------------------------------------------------------------------------------------
-TFliteModelExecute* TFliteModelExecute::Create(TFLiteInitData* pInitData)
-{
-    g_pTFliteModelExecute = new TFliteModelExecute;
-
-    if (g_pTFliteModelExecute != NULL)
-    {
-        if (g_pTFliteModelExecute->Initialize(pInitData) != S_OK)
-        {
-            VOXL_LOG_FATAL("\n------voxl-mpa-tflite-gpu: Failed to initialize");
-            g_pTFliteModelExecute->Destroy();
-            g_pTFliteModelExecute = NULL;
-        }
-    }
-
-    return g_pTFliteModelExecute;
-}
-
-//------------------------------------------------------------------------------------------------------------------------------
-// Initialize the object instance. Return S_ERROR on any errors.
-//------------------------------------------------------------------------------------------------------------------------------
-Status TFliteModelExecute::Initialize(TFLiteInitData* pInitData)
+TFliteModelExecute::TFliteModelExecute(TFLiteInitData* pInitData)
 {
     Status             status       = S_OK;
-    InputInterfaceData inputData    = { 0 };
     bool               isPydnet     = false;
 
     m_tfliteThreadData.pTcpServer    = pInitData->pTcpServer;
@@ -190,7 +82,6 @@ Status TFliteModelExecute::Initialize(TFLiteInitData* pInitData)
     m_tfliteThreadData.stop          = false;
     m_tfliteThreadData.pMsgQueue     = &m_tfliteMsgQueue;
     m_tfliteMsgQueue.queueInsertIdx  = 0;
-    m_pInputPipeInterface            = NULL;
     m_tfliteThreadData.camera        = pInitData->camera;
     m_tfliteThreadData.frame_skip    = pInitData->frame_skip;
     m_tfliteThreadData.verbose       = pInitData->verbose;
@@ -242,27 +133,85 @@ Status TFliteModelExecute::Initialize(TFLiteInitData* pInitData)
             // pthread_cond_signal(&m_tfliteThreadData.cond);
             // pthread_mutex_unlock(&m_tfliteThreadData.mutex);
 
-            inputData.ImageReceivedCallback = PipeImageDataCb;
+            const char *pipeName;
             if (pInitData->camera == 0){
-                inputData.pipeName = "/run/mpa/hires_preview/";
+                pipeName = "/run/mpa/hires_preview/";
+                VOXL_LOG_ERROR("Using Camera: hires_preview\n");
             }
             else {
-                inputData.pipeName = "/run/mpa/tracking/";
+                pipeName = "/run/mpa/tracking/";
+                VOXL_LOG_ERROR("Using Camera: tracking\n");
             }
 
-            m_pInputPipeInterface = CameraNamedPipe::Create();
-
-            if (m_pInputPipeInterface != NULL)
-            {
-                status = m_pInputPipeInterface->Initialize(&inputData);
-            }
-            else
-            {
-                VOXL_LOG_FATAL("\n------voxl-mpa-tflite-gpu: FATAL: Cannot open camera pipe!");
-                status = S_ERROR;
-            }
+            pipe_client_set_camera_helper_cb(0, _cam_helper_cb, this);
+            pipe_client_open(0,
+                             (char*) pipeName,
+                             "voxl-tflite-server",
+                             CLIENT_FLAG_EN_CAMERA_HELPER,
+                             0);
         }
     }
+}
 
-    return status;
+//------------------------------------------------------------------------------------------------------------------------------
+// Destructor
+//------------------------------------------------------------------------------------------------------------------------------
+TFliteModelExecute::~TFliteModelExecute()
+{
+    pipe_client_close_all();
+
+    m_tfliteThreadData.stop        = true;
+    m_tfliteThreadData.tfliteReady = false;
+
+    m_tfliteThreadData.condVar.notify_all();
+
+    pthread_join(m_tfliteThreadData.thread, NULL);
+
+    if (m_tfliteThreadData.pTcpServer != NULL)
+    {
+        pthread_join(m_tfliteThreadData.threadSendImg, NULL);
+    }
+
+    delete this;
+}
+
+//------------------------------------------------------------------------------------------------------------------------------
+// Process the image data
+//------------------------------------------------------------------------------------------------------------------------------
+void TFliteModelExecute::PipeImageData(camera_image_metadata_t meta, uint8_t* pImagePixels)
+{
+    if (m_tfliteThreadData.tfliteReady == true)
+    {
+
+        if(meta.size_bytes > MAX_IMAGE_SIZE){
+            VOXL_LOG_ERROR("Model Received too many bytes: %d\n", meta.size_bytes);
+            return;
+        }
+        int queueInsertIdx = m_tfliteMsgQueue.queueInsertIdx;
+
+        TFLiteMessage* pTFLiteMessage = &m_tfliteMsgQueue.queue[queueInsertIdx];
+
+        pTFLiteMessage->metadata     = meta;
+        memcpy(pTFLiteMessage->imagePixels, pImagePixels, meta.size_bytes);
+
+        m_tfliteMsgQueue.queueInsertIdx = ((queueInsertIdx + 1) % MAX_MESSAGES);
+        m_tfliteThreadData.condVar.notify_all();
+
+    }
+}
+
+// camera helper callback whenever a frame arrives
+static void _cam_helper_cb(__attribute__((unused))int ch, 
+                                                  camera_image_metadata_t meta,
+                                                  char* frame,
+                                                  void* context)
+{
+
+    //Skip some frames and only process if someone is listening
+    if (!(meta.frame_id % CAMERA_NTH_FRAME) && pipe_server_get_num_clients(0) > 0)
+    {
+        ((TFliteModelExecute*) context)->PipeImageData(meta, (uint8_t*) frame);
+    }
+
+
 }

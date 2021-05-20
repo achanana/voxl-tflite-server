@@ -36,8 +36,11 @@
 #include <mutex>
 #include <condition_variable>
 #include "common_defs.h"
+#include <modal_pipe.h>
 
-struct camera_image_metadata_t;
+//4k YUV
+#define MAX_IMAGE_SIZE (12441600)
+
 class  TcpServer;
 
 // -----------------------------------------------------------------------------------------------------------------------------
@@ -45,8 +48,8 @@ class  TcpServer;
 // -----------------------------------------------------------------------------------------------------------------------------
 struct TFLiteMessage
 {
-    camera_image_metadata_t* pMetadata;     ///< Image metadata information
-    uint8_t*                 pImagePixels;  ///< Image pixels
+    camera_image_metadata_t  metadata;                     ///< Image metadata information
+    uint8_t                  imagePixels[MAX_IMAGE_SIZE];  ///< Image pixels
 };
 
 // -----------------------------------------------------------------------------------------------------------------------------
