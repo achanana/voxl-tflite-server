@@ -2,12 +2,6 @@
 
 How to use tensorflow-lite on VOXL
 
-High Level Overview
-===================
-The following picture shows at a glance how the different components interact with each other.
-
-![](images/voxl-tflite-server.png)
-
 Build steps
 ===========
 1. (PC) Build the voxl-cross docker from [here](https://gitlab.com/voxl-public/utilities/voxl-docker)
