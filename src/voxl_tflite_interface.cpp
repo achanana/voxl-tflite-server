@@ -57,15 +57,6 @@ namespace label_image
 std::mutex              g_condMutex;
 std::condition_variable g_condVar;
 
-struct SendTcpData
-{
-    int      width;
-    int      height;
-    int      frameNumber;
-    uint64_t timestampNsecs;
-    uint8_t* pRgbData;
-};
-
 template<typename T>
 T* TensorData(TfLiteTensor* tensor, int batch_index);
 
