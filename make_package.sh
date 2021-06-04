@@ -42,6 +42,8 @@ rm -rf $IPK_NAME
 
 cd build && sudo make DESTDIR=../ipk/data PREFIX=/usr install && cd -
 
+sudo mkdir -p $DATA_DIR/etc/systemd/system/ 2>/dev/null > /dev/null
+sudo cp service/*.service $DATA_DIR/etc/systemd/system/ 2>/dev/null > /dev/null
 sudo mkdir $DATA_DIR/usr/bin/dnn/
 sudo cp -r ./dnn/*  $DATA_DIR/usr/bin/dnn/ 2>/dev/null
 

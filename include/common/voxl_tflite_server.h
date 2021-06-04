@@ -46,8 +46,4 @@
 // config file exists here if you want to access it
 #define VOXL_TFLITE_SERVER_CONF_FILE	"/etc/modalai/voxl-tflite-server.conf"
 
-// These are the paths of the named pipe interfaces for each channel
-// MODAL_PIPE_DEFAULT_BASE_DIR is defined in modal_pipe_common.h
-#define TFLITE_CHANNEL_RGB_IMAGE            (MODAL_PIPE_DEFAULT_BASE_DIR "tflite/image/")
-
 #endif // #ifndef VOXL_TFLITE_SERVER_COMMON_H
