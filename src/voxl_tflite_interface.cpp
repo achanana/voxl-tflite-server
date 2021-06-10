@@ -31,6 +31,8 @@ Modified by ModalAI to run the object detection model on live camera frames
 #include <vector>
 #include <unistd.h>
 
+//#include "voxl_tflite_gpu_object_detect.h"
+
 #include "debug_log.h"
 #include "memory.h"
 #include <modal_pipe.h>
@@ -46,7 +48,7 @@ Modified by ModalAI to run the object detection model on live camera frames
 void* ThreadMobileNet(void* data);
 void* ThreadTflitePydnet(void* data);
 void* ThreadSendImageData(void* data);
-
+extern bool en_debug;
 
 namespace tflite
 {
@@ -152,8 +154,8 @@ TfLiteDelegatePtrMap GetDelegates(Settings* s)
         if (!delegate)
         {
             VOXL_LOG_ERROR("GPU acceleration is unsupported on this platform.\n");
-        } 
-        else 
+        }
+        else
         {
             VOXL_LOG_INFO("GPU acceleration is SUPPORTED on this platform\n");
             delegates.emplace("GPU", std::move(delegate));
@@ -186,7 +188,7 @@ TfLiteStatus ReadLabelsFile(const string& file_name,
     {
         result->push_back(line);
     }
-    
+
     *found_label_count = result->size();
     const int padding = 16;
 
@@ -214,9 +216,7 @@ void TFliteMobileNet(void* pData)
     cv::Mat*  rgbImage                       = new cv::Mat();
     cv::Mat resizedImage                     = cv::Mat();
     TFliteThreadData* pThreadData            = (TFliteThreadData*)pData;
-    int cam                                  = pThreadData->camera;
-    bool verbose                             = pThreadData->verbose;
-    pipe_info_t tflite_pipe                  = {"tflite", MPA_TFLITE_PATH, "camera_image_metadata_t", "voxl-tflite-server", 16*1024*1024, 0};    
+    pipe_info_t tflite_pipe                  = {"tflite", MPA_TFLITE_PATH, "camera_image_metadata_t", "voxl-tflite-server", 16*1024*1024, 0};
 
     pipe_server_create(OUTPUT_ID_RGB_IMAGE, tflite_pipe, 0);
 
@@ -299,7 +299,7 @@ void TFliteMobileNet(void* pData)
     modelImageHeight   = dims->data[1];
     modelImageWidth    = dims->data[2];
     modelImageChannels = dims->data[3];
-      
+
     // Set thread priority
     pid_t tid = syscall(SYS_gettid);
     int which = PRIO_PROCESS;
@@ -339,12 +339,12 @@ void TFliteMobileNet(void* pData)
         // Coming here means we have a frame to run through the DNN model
         numFrames++;
         TFLiteMessage* pTFLiteMessage           = &pThreadData->pMsgQueue->queue[queueProcessIdx];
-        if (verbose){
+        if (en_debug){
             fprintf(stderr, "\n------Popping index %d frame %d ...... Queue size: %d",
                 queueProcessIdx, pTFLiteMessage->metadata.frame_id,
                 abs(pThreadData->pMsgQueue->queueInsertIdx - queueProcessIdx));
         }
-        
+
         ///<@todo Create a wrapper for this structure
         meta = pTFLiteMessage->metadata;
         pImagePixels   = pTFLiteMessage->imagePixels;
@@ -354,15 +354,16 @@ void TFliteMobileNet(void* pData)
         int imageChannels = 3;
 
         gettimeofday(&yuvrgb_start_time, nullptr);
-        if (cam == 0){
+        if (meta.format == IMAGE_FORMAT_NV12){
             cv::Mat yuv(imageHeight + imageHeight/2, imageWidth, CV_8UC1, (uchar*)pImagePixels);
-            cv::cvtColor(yuv, *rgbImage, CV_YUV2RGB_NV21);
+            cv::cvtColor(yuv, *rgbImage, CV_YUV2RGB_NV21); // time + opencl
         }
-        else if (cam == 1){
+        else {
             cv::Mat yuv(imageHeight, imageWidth, CV_8UC1, (uchar*)pImagePixels);
             cv::Mat in[] = {yuv, yuv, yuv};
             cv::merge(in, 3, *rgbImage);
         }
+        // look into how it is cropped + timing
         cv::resize(*rgbImage,
                resizedImage,
                cv::Size(modelImageWidth, modelImageHeight),
@@ -384,7 +385,7 @@ void TFliteMobileNet(void* pData)
 
         if (s->verbose)
         {
-            // PrintInterpreterState(interpreter.get());
+            PrintInterpreterState(interpreter.get());
         }
 
         gettimeofday(&resize_start_time, nullptr);
@@ -423,7 +424,7 @@ void TFliteMobileNet(void* pData)
         }
 
         gettimeofday(&stop_time, nullptr);
-        
+
         totalGpuExecutionTimemsecs += (get_us(stop_time) - get_us(start_time)) / 1000;
 
         // https://www.tensorflow.org/lite/models/object_detection/overview#starter_model
@@ -465,12 +466,12 @@ void TFliteMobileNet(void* pData)
                 cv::rectangle(*rgbImage, rect, cv::Scalar(0, 200, 0), 7);
                 cv::putText(*rgbImage,
                             labels[detected_classes[i]], pt, cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255, 0, 0), 2);
-            
+
             }
         }
-        
+
         ///<@todo Handle different format types
-        meta.format         = IMAGE_FORMAT_RGB; 
+        meta.format         = IMAGE_FORMAT_RGB;
         meta.size_bytes     = (imageHeight * imageWidth * 3);
         meta.stride         = (modelImageWidth * 3);
         if( rgbImage->data != NULL){
@@ -501,14 +502,14 @@ void TflitePydnet(void* pData)
     int modelImageHeight;
     int modelImageWidth;
     int modelImageChannels;
-    std::unique_ptr<tflite::FlatBufferModel> model; 
+    std::unique_ptr<tflite::FlatBufferModel> model;
     std::unique_ptr<tflite::Interpreter>     interpreter;
     tflite::ops::builtin::BuiltinOpResolver  resolver;
     tflite::label_image::Settings* s         = NULL;
     TFliteThreadData* pThreadData            = (TFliteThreadData*)pData;
     cv::Mat*  rgbImage                      = new cv::Mat();
     cv::Mat resizedImage                     = cv::Mat();
-    pipe_info_t tflite_pipe                  = {"tflite", MPA_TFLITE_PATH, "camera_image_metadata_t", "voxl-tflite-server", 16*1024*1024, 0};    
+    pipe_info_t tflite_pipe                  = {"tflite", MPA_TFLITE_PATH, "camera_image_metadata_t", "voxl-tflite-server", 16*1024*1024, 0};
 
     pipe_server_create(OUTPUT_ID_RGB_IMAGE, tflite_pipe, 0);
 
@@ -530,7 +531,7 @@ void TflitePydnet(void* pData)
     s->number_of_warmup_runs        = 0;
     s->loop_count                   = 1;
     s->input_floating               = true;
-    
+
 
     if (!s->model_name.c_str())
     {
@@ -577,7 +578,7 @@ void TflitePydnet(void* pData)
     {
         interpreter->SetNumThreads(s->number_of_threads);
     }
-        
+
     TfLiteDelegatePtrMap delegates_ = GetDelegates(s);
 
     for (const auto& delegate : delegates_)
@@ -628,7 +629,7 @@ void TflitePydnet(void* pData)
     cv::Size _input_size;
 
     _input_size = cv::Size(modelImageWidth, modelImageHeight);
-    cv::Mat masked_img = cv::Mat(); 
+    cv::Mat masked_img = cv::Mat();
 
     int queueProcessIdx = 0;
 
@@ -644,9 +645,11 @@ void TflitePydnet(void* pData)
         numFrames++;
 
         TFLiteMessage* pTFLiteMessage           = &pThreadData->pMsgQueue->queue[queueProcessIdx];
+        if (en_debug){
         VOXL_LOG_ERROR("------Popping index %d frame %d ...... Queue size: %d\n",
                 queueProcessIdx, pTFLiteMessage->metadata.frame_id,
                 abs(pThreadData->pMsgQueue->queueInsertIdx - queueProcessIdx));
+        }
 
         ///<@todo Create a wrapper for this structure
         camera_image_metadata_t pImageMetadata =  pTFLiteMessage->metadata;
@@ -661,7 +664,7 @@ void TflitePydnet(void* pData)
         gettimeofday(&yuvrgb_start_time, nullptr);
 
         cv::Mat yuv(imageHeight + imageHeight/2, imageWidth, CV_8UC1, (uchar*)pImagePixels);
-        cv::cvtColor(yuv, colored_img, CV_YUV2RGB_NV12);      
+        cv::cvtColor(yuv, colored_img, CV_YUV2RGB_NV12);
 
 
         cv::resize(colored_img,
@@ -702,9 +705,9 @@ void TflitePydnet(void* pData)
         float* depth  = TensorData<float>(output_locations, 0);
         cv::Mat depthImage(384, 640, CV_32FC1, depth);
 
-        /// Noralization 
-        double minVal;  
-        double maxVal;        
+        /// Noralization
+        double minVal;
+        double maxVal;
         cv::minMaxLoc(depthImage, &minVal, &maxVal);
         depthImage = (depthImage - minVal) / (maxVal - minVal);
         depthImage = depthImage * 255.0;
@@ -714,16 +717,16 @@ void TflitePydnet(void* pData)
 
         cv::Mat map_img;
         cv::Mat holder_img;
-        applyColorMap(_mask, map_img, cv::COLORMAP_PLASMA); 
-        cv::resize(map_img, holder_img, cv::Size(640, 480), 0, 0, cv::INTER_NEAREST); 
-        cv::cvtColor(holder_img, *rgbImage, CV_BGR2RGB);      
+        applyColorMap(_mask, map_img, cv::COLORMAP_PLASMA);
+        cv::resize(map_img, holder_img, cv::Size(640, 480), 0, 0, cv::INTER_NEAREST);
+        cv::cvtColor(holder_img, *rgbImage, CV_BGR2RGB);
 
-        pImageMetadata.format         = IMAGE_FORMAT_RGB;   
-        pImageMetadata.size_bytes     = (imageWidth * imageHeight * 3); 
-        pImageMetadata.stride         = (imageWidth * 3); 
+        pImageMetadata.format         = IMAGE_FORMAT_RGB;
+        pImageMetadata.size_bytes     = (imageWidth * imageHeight * 3);
+        pImageMetadata.stride         = (imageWidth * 3);
         pipe_server_write_camera_frame(OUTPUT_ID_RGB_IMAGE, pImageMetadata, (char*)rgbImage->data);;
 
-        queueProcessIdx = ((queueProcessIdx + 1) % MAX_MESSAGES); 
+        queueProcessIdx = ((queueProcessIdx + 1) % MAX_MESSAGES);
      }
 
 
@@ -738,7 +741,7 @@ void TflitePydnet(void* pData)
         rgbImage = NULL;
     }
     pipe_server_close_all();
-}  
+}
 
 
 } // namespace labelimage

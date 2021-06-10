@@ -37,6 +37,8 @@
 #include "common_defs.h"
 #include "voxl_tflite_interface.h"
 
+
+
 //------------------------------------------------------------------------------------------------------------------------------
 // Initialization data
 //------------------------------------------------------------------------------------------------------------------------------
@@ -44,8 +46,8 @@ struct TFLiteInitData
 {
     char*      pDnnModelFile;   ///< Dnn model
     char*      pLabelsFile;     ///< Dnn labels file
-    int        camera;          ///< Camera we want to use - 0 for hires, 1 for tracking
-    bool       verbose;         ///< Verbose debug output - default off
+    char*      pInputPipe;
+    int        frame_skip;
 };
 
 //------------------------------------------------------------------------------------------------------------------------------

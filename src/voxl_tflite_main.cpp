@@ -44,13 +44,16 @@
 #include "common_defs.h"
 #include "debug_log.h"
 #include "voxl_tflite_gpu_object_detect.h"
+#include <modal_pipe.h>
+#include "config_file.h"
 
 volatile int            g_keepRunning = 1;
 std::mutex              g_exitCondMutex;
 std::condition_variable g_exitCondVar;
-char* PydnetModel    = (char*)"/usr/bin/dnn/tflite_pydnet.tflite";
-char* MobileNetModel = (char*)"/usr/bin/dnn/mobilenet_v1_ssd_coco_labels.tflite";
-
+char* PydnetModel     = (char*)"/usr/bin/dnn/tflite_pydnet.tflite";
+char* MobileNetModel  = (char*)"/usr/bin/dnn/mobilenet_v1_ssd_coco_labels.tflite";
+char* MobileNetLabels = (char*)"/usr/bin/dnn/mobilenet_v1_ssd_coco_labels.txt";
+bool en_debug = false;
 
 // -----------------------------------------------------------------------------------------------------------------------------
 // Function prototypes
@@ -83,129 +86,81 @@ int ErrorCheck(int numInputsScanned, const char* pOptionName)
 }
 
 // -----------------------------------------------------------------------------------------------------------------------------
-// Parses the command line arguments to the main function
-// -----------------------------------------------------------------------------------------------------------------------------
-int ParseArgs(int         argc,
-              char* const pArgv[],
-              char*       pDnnModelFile,
-              char*       pLabelsFile,
-              int*        pCamera,
-              bool*       verbose)
-{
-    static struct option LongOptions[] =
-    {
-        {"dnnmodel",     required_argument, 0, 'm'},
-        {"camera",       required_argument, 0, 'c'},
-        {"labels",       required_argument, 0, 'l'},
-        {"help",         no_argument,       0, 'h'},
-        {0, 0, 0, 0                               }
-    };
-
-    int numInputsScanned = 0;
-    int optionIndex      = 0;
-    int status           = 0;
-    int option;
-
-    while ((status == 0) && (option = getopt_long_only (argc, pArgv, ":c:m:l:hv", &LongOptions[0], &optionIndex)) != -1)
-    {
-        switch(option)
-        {
-            case 'v':
-                *verbose = true;
-                break;
-            case 'c':
-                numInputsScanned = sscanf(optarg, "%d", pCamera);
-                if (!strcmp(optarg, "tracking"))
-                {
-                    *pCamera = 1;
-                }
-                else if (!strcmp(optarg, "hires"))
-                {
-                    *pCamera = 0;
-                }
-                else
-                {
-                    printf("Invalid camera option specified: %s\n", optarg);
-                    status = -EINVAL;
-                }
-                break;
-
-            case 'm':
-                numInputsScanned = sscanf(optarg, "%s", pDnnModelFile);
-
-                if (ErrorCheck(numInputsScanned, LongOptions[optionIndex].name) != 0)
-                {
-                    printf("No DNN model filename specified\n");
-                    status = -EINVAL;
-                }
-
-                if (!strcmp(pDnnModelFile, "pydnet"))
-                {
-                    strcpy(pDnnModelFile, PydnetModel);
-                }
-                else if (!strcmp(pDnnModelFile, "mobilenet"))
-                {
-                    strcpy(pDnnModelFile, MobileNetModel);
-                }
-
-                fprintf(stderr, "------Selected model: %s\n", pDnnModelFile);
-
-                break;
-
-            case 'l':
-                numInputsScanned = sscanf(optarg, "%s", pLabelsFile);
-
-                if (ErrorCheck(numInputsScanned, LongOptions[optionIndex].name) != 0)
-                {
-                    printf("No DNN model labels filename specified\n");
-                    status = -EINVAL;
-                }
-
-                break;
-
-            case 'h':
-                status = -EINVAL; // This will have the effect of printing the help message and exiting the program
-                break;
-
-            // Unknown argument
-            case '?':
-            default:
-                printf("Invalid argument passed!\n");
-                status = -EINVAL;
-                break;
-        }
-    }
-
-    return status;
-}
-
-// -----------------------------------------------------------------------------------------------------------------------------
 // Print the help message
 // -----------------------------------------------------------------------------------------------------------------------------
-void PrintHelpMessage()
+void _print_usage()
 {
     printf("\nCommand line arguments are as follows:\n\n");
-    printf("-c <camera>     : Camera to use for object detection: hires or tracking. (Default: tracking)\n");
-    printf("-v              : Verbose debug output (Default: Off)\n");
-    printf("-m <file>       : Deep learning model filename (Default: /bin/dnn/mobilenet_v1_ssd_coco_labels.tflite)\n");
-    printf("-l <file>       : Class labels filename (Default: /bin/dnn/mobilenet_v1_ssd_coco_labels.txt)\n");
+    printf("-c, --config    :  load the config file only, for use by the config wizard\n");
+    printf("-d, --debug     : Verbose debug output (Default: Off)\n");
     printf("-h              : Print this help message\n");
 }
 
+// -----------------------------------------------------------------------------------------------------------------------------
+// Parses the command line arguments to the main function
+// -----------------------------------------------------------------------------------------------------------------------------
+static bool _parse_opts(int argc, char* argv[])
+{
+    static struct option long_options[] =
+    {
+        {"config",     required_argument, 0, 'm'},
+        {"debug",      required_argument, 0, 'c'},
+        {"help",       no_argument,       0, 'h'},
+        {0, 0, 0}
+    };
+
+    while (1)
+	{
+		int option_index = 0;
+		int c = getopt_long(argc, argv, "cdh", long_options, &option_index);
+
+		// Detect the end of the options.
+		if (c == -1)
+		{
+			break;
+		}
+
+		switch (c)
+		{
+		case 0:
+			// for long args without short equivalent that just set a flag nothing left to do so just break.
+			if (long_options[option_index].flag != 0) break;
+			break;
+
+		case 'c':
+			config_file_read();
+            exit(0);
+
+		case 'd':
+			VOXL_LOG_INFO("Enabling debug mode");
+			en_debug = true;
+			break;
+
+		case 'h':
+			_print_usage();
+			return true;
+
+		default:
+			// Print the usage if there is an incorrect command line option
+			_print_usage();
+			return true;
+		}
+	}
+
+	return false;
+}
+
 static void _server_connect_cb(int ch, int client_id, char* name, void* context){
-
-    if(pipe_server_get_num_clients(0) == 1){
-        ((TFliteModelExecute *)context)->resume();
-    }
-
+        VOXL_LOG_INFO("\nClient Connected\n");
+        // ((TFliteModelExecute *)context)->resume()
 }
 
 
 static void _server_disconnect_cb(int ch, int client_id, char* name, void* context){
-
-    if(pipe_server_get_num_clients(0) == 0){
-        ((TFliteModelExecute *)context)->pause();
-    }
+        VOXL_LOG_INFO("\nClient Disconnected\n");
+    // if(!en_debug && pipe_server_get_num_clients(0) == 0){
+    //     ((TFliteModelExecute *)context)->pause();
+    // }
 
 }
 
@@ -213,68 +168,56 @@ static void _server_disconnect_cb(int ch, int client_id, char* name, void* conte
 //------------------------------------------------------------------------------------------------------------------------------
 // Main entry point for the application
 //------------------------------------------------------------------------------------------------------------------------------
-int main(int argc, char **argv)
+int main(int argc, char *argv[])
 {
-
-    int         status             = 0;
-    char        dnnModelFile[256]  = "/usr/bin/dnn/mobilenet_v1_ssd_coco_labels.tflite";
-    char        dnnLabelsFile[256] = "/usr/bin/dnn/mobilenet_v1_ssd_coco_labels.txt";
-    int         camera             = 1;
-    bool        verbose            = 0;
-
-
     TFLiteInitData initData;
 
-    status = ParseArgs(argc, argv, &dnnModelFile[0], &dnnLabelsFile[0], &camera, &verbose);
+    if (_parse_opts(argc, argv)){
+		return -1;
+	}
 
+    // load and print config file
+	if(config_file_read()){
+		return -1;
+	}
+	config_file_print();
 
-    Debug::SetDebugLevel(verbose ? DebugLevel::ALL : DebugLevel::ERROR);
+    Debug::SetDebugLevel(en_debug ? DebugLevel::ALL : DebugLevel::ERROR);
 
+    initData.pDnnModelFile = model;
+    initData.pLabelsFile   = MobileNetLabels;
+    initData.pInputPipe    = input_pipe;
+    initData.frame_skip    = skip_n_frames;
 
-    if (status != 0)
+    signal(SIGINT, CtrlCHandler);
+
+    VOXL_LOG_FATAL("\n------VOXL TFLite Server------\n\n");
+
+    TFliteModelExecute* pTFliteModelExecute = new TFliteModelExecute(&initData);
+
+    if (pTFliteModelExecute != NULL)
     {
-        PrintHelpMessage();
+        pipe_server_set_disconnect_cb(0, _server_disconnect_cb, pTFliteModelExecute);
+        pipe_server_set_connect_cb(0, _server_connect_cb, pTFliteModelExecute);
+
+        // The apps keeps running till Ctrl+C is pressed to terminate the program
+        while (g_keepRunning)
+        {
+            std::unique_lock<std::mutex> lock(g_exitCondMutex);
+            // g_exitCondVar.wait(lock);
+            ///<@todo Enable convition variable
+            sleep(2);
+        }
+
+        VOXL_LOG_FATAL("------ Stopping the application\n");
+
+        delete pTFliteModelExecute;
+
+        VOXL_LOG_FATAL("\n------ Done: application exited gracefully\n\n");
     }
     else
     {
-
-        initData.pDnnModelFile = &dnnModelFile[0];
-        initData.pLabelsFile   = &dnnLabelsFile[0];
-        initData.camera        = camera;
-        initData.verbose       = verbose;
-
-        signal(SIGINT, CtrlCHandler);
-
-        VOXL_LOG_FATAL("\n------VOXL TFLite Server------\n\n");
-
-        TFliteModelExecute* pTFliteModelExecute = new TFliteModelExecute(&initData);
-
-        if (pTFliteModelExecute != NULL)
-        {
-
-
-            pipe_server_set_disconnect_cb(0, _server_disconnect_cb, pTFliteModelExecute);
-            pipe_server_set_connect_cb(0, _server_connect_cb, pTFliteModelExecute);
-
-            // The apps keeps running till Ctrl+C is pressed to terminate the program
-            while (g_keepRunning)
-            {
-                std::unique_lock<std::mutex> lock(g_exitCondMutex);
-                // g_exitCondVar.wait(lock);
-                ///<@todo Enable convition variable
-                sleep(2);
-            }
-
-            VOXL_LOG_FATAL("------ Stopping the application\n");
-            delete pTFliteModelExecute;
-
-            VOXL_LOG_FATAL("\n------ Done: application exited gracefully\n\n");
-        }
-        else
-        {
-            status = -1;
-        }
+        return -1;
     }
-
-    return status;
+    return 0;
 }

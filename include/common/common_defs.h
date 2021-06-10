@@ -19,7 +19,7 @@ static const int MAX_MESSAGES      = 256; ///<@todo check this number being too 
 //------------------------------------------------------------------------------------------------------------------------------
 enum Status
 {
-    S_ERROR = -1,    
+    S_ERROR = -1,
     S_OK    =  0,
 };
 

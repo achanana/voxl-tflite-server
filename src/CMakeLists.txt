@@ -70,7 +70,7 @@ target_link_libraries(${PROJECT_NAME}
   absl_symbolize
   absl_debugging_internal
   absl_demangle_internal
-  absl_dynamic_annotations  
+  absl_dynamic_annotations
   glib-2.0
   dl
   stdc++
@@ -82,6 +82,7 @@ target_link_libraries(${PROJECT_NAME}
   gthread-2.0
   pcre
   modal_pipe
+  modal_json
   opencv_highgui
   opencv_imgproc
   opencv_core
