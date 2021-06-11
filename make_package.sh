@@ -47,6 +47,14 @@ sudo cp service/*.service $DATA_DIR/etc/systemd/system/ 2>/dev/null > /dev/null
 sudo mkdir $DATA_DIR/usr/bin/dnn/
 sudo cp -r ./dnn/*  $DATA_DIR/usr/bin/dnn/ 2>/dev/null
 
+sudo mkdir -p $DATA_DIR/usr/bin/
+sudo cp config/voxl-configure-tflite.sh $DATA_DIR/usr/bin/voxl-configure-tflite
+sudo chmod +x $DATA_DIR/usr/bin/voxl-configure-tflite
+
+sudo mkdir -p $DATA_DIR/usr/share/bash-completion/completions
+sudo cp bash_completions/* $DATA_DIR/usr/share/bash-completion/completions
+
+
 ################################################################################
 # pack the control, data, and final ipk archives
 ################################################################################
