@@ -49,6 +49,7 @@ void* ThreadMobileNet(void* data);
 void* ThreadTflitePydnet(void* data);
 void* ThreadSendImageData(void* data);
 extern bool en_debug;
+extern bool en_timing;
 
 namespace tflite
 {
@@ -328,13 +329,19 @@ void TFliteMobileNet(void* pData)
     int queueProcessIdx = 0;
 
     while (pThreadData->stop == false)
-    {
+    { //(!(en_debug) || !(en_timing) || pipe_server_get_num_clients(OUTPUT_ID_RGB_IMAGE) == 0) &&
         if (queueProcessIdx == pThreadData->pMsgQueue->queueInsertIdx)
         {
             std::unique_lock<std::mutex> lock(pThreadData->condMutex);
             pThreadData->condVar.wait(lock);
             continue;
         }
+        if (((!en_debug) && (!en_timing))){
+            if (pipe_server_get_num_clients(OUTPUT_ID_RGB_IMAGE) == 0 ){
+                continue;
+            }
+        }
+
 
         // Coming here means we have a frame to run through the DNN model
         numFrames++;
@@ -363,6 +370,7 @@ void TFliteMobileNet(void* pData)
             cv::Mat in[] = {yuv, yuv, yuv};
             cv::merge(in, 3, *rgbImage);
         }
+
         // look into how it is cropped + timing
         cv::resize(*rgbImage,
                resizedImage,
@@ -370,10 +378,9 @@ void TFliteMobileNet(void* pData)
                0,
                0,
                CV_INTER_LINEAR);
+
         gettimeofday(&yuvrgb_stop_time, nullptr);
-
-
-        totalYuvRgbTimemsecs += (get_us(yuvrgb_stop_time) - get_us(yuvrgb_start_time)) / 1000;
+        totalYuvRgbTimemsecs = (get_us(yuvrgb_stop_time) - get_us(yuvrgb_start_time)) / 1000;
 
         uint8_t*               pImageData = (uint8_t*)resizedImage.data;
         const std::vector<int> inputs     = interpreter->inputs();
@@ -411,7 +418,7 @@ void TFliteMobileNet(void* pData)
 
         gettimeofday(&resize_stop_time, nullptr);
 
-        totalResizeTimemsecs += (get_us(resize_stop_time) - get_us(resize_start_time)) / 1000;
+        totalResizeTimemsecs = (get_us(resize_stop_time) - get_us(resize_start_time)) / 1000;
 
         gettimeofday(&start_time, nullptr);
 
@@ -425,7 +432,7 @@ void TFliteMobileNet(void* pData)
 
         gettimeofday(&stop_time, nullptr);
 
-        totalGpuExecutionTimemsecs += (get_us(stop_time) - get_us(start_time)) / 1000;
+        totalGpuExecutionTimemsecs = (get_us(stop_time) - get_us(start_time)) / 1000;
 
         // https://www.tensorflow.org/lite/models/object_detection/overview#starter_model
         TfLiteTensor* output_locations    = interpreter->tensor(interpreter->outputs()[0]);
@@ -456,7 +463,9 @@ void TFliteMobileNet(void* pData)
             // Check for object detection confidence of 60% or more
             if (score > 0.6f)
             {
-
+                if (en_debug){
+                    std::cout << "Detected: " << labels[detected_classes[i]] <<  ", Confidence: " << score << std::endl;
+                }
                 int height = bottom - top;
                 int width  = right - left;
 
@@ -470,6 +479,11 @@ void TFliteMobileNet(void* pData)
             }
         }
 
+        if (en_timing){
+            std::cout << std::endl <<  "Total resize time: " << totalResizeTimemsecs << "ms" << std::endl;
+            std::cout << "Total YuvRGB time: " << totalYuvRgbTimemsecs << "ms" << std::endl;
+            std::cout << "Total GPU time: " << totalGpuExecutionTimemsecs << "ms" << std::endl;
+        }
         ///<@todo Handle different format types
         meta.format         = IMAGE_FORMAT_RGB;
         meta.size_bytes     = (imageHeight * imageWidth * 3);
@@ -520,10 +534,10 @@ void TflitePydnet(void* pData)
     s->labels_file_name             = pThreadData->pLabelsFile;
     s->input_bmp_name               = "";
     s->gl_backend                   = 1;
-    s->number_of_threads            = 4;
+    s->number_of_threads            = 8;
     s->allow_fp16                   = 1;
     s->input_mean                   = 127;
-    s->accel                        = 0;
+    s->accel                        = 1;
     s->old_accel                    = 0;
     s->max_profiling_buffer_entries = 0;
     s->profiling                    = 0;
@@ -561,11 +575,12 @@ void TflitePydnet(void* pData)
     interpreter->UseNNAPI(s->old_accel);
     interpreter->SetAllowFp16PrecisionForFp32(s->allow_fp16);
 
-
     if (s->number_of_threads != -1)
     {
         interpreter->SetNumThreads(s->number_of_threads);
     }
+
+    VOXL_LOG_INFO("WARNING: Pydnet requires ~1 minute to initialize the graph before processing frames.\n");
 
     if (interpreter->AllocateTensors() != kTfLiteOk)
     {
@@ -604,16 +619,17 @@ void TflitePydnet(void* pData)
     struct timeval start_time, stop_time;
     struct timeval resize_start_time, resize_stop_time;
     struct timeval yuvrgb_start_time, yuvrgb_stop_time;
+    struct timeval colormap_start_time, colormap_end_time;
     uint32_t totalResizeTimemsecs = 0;
     uint32_t totalYuvRgbTimemsecs = 0;
     uint32_t totalGpuExecutionTimemsecs = 0;
+    uint32_t totalColorMapTimesecs = 0;
     uint32_t numFrames = 0;
 
     gettimeofday(&begin_time, nullptr);
 
 
     setpriority(which, tid, nice);
-
 
     // Inform the camera frames receiver that tflite processing is ready to receive frames and start processing
     pThreadData->tfliteReady = true;
@@ -635,7 +651,7 @@ void TflitePydnet(void* pData)
 
     while (pThreadData->stop == false)
     {
-        if (queueProcessIdx == pThreadData->pMsgQueue->queueInsertIdx)
+        if ((!(en_debug) || !(en_timing) || pipe_server_get_num_clients(OUTPUT_ID_RGB_IMAGE) == 0) && queueProcessIdx == pThreadData->pMsgQueue->queueInsertIdx)
         {
             std::unique_lock<std::mutex> lock(pThreadData->condMutex);
             pThreadData->condVar.wait(lock);
@@ -674,7 +690,7 @@ void TflitePydnet(void* pData)
                    0,
                    CV_INTER_LINEAR);
         gettimeofday(&yuvrgb_stop_time, nullptr);
-        totalYuvRgbTimemsecs += (get_us(yuvrgb_stop_time) - get_us(yuvrgb_start_time)) / 1000;
+        totalYuvRgbTimemsecs = (get_us(yuvrgb_stop_time) - get_us(yuvrgb_start_time)) / 1000;
 
 
 
@@ -692,18 +708,20 @@ void TflitePydnet(void* pData)
                         modelImageWidth, modelImageChannels, s);
 
         gettimeofday(&resize_stop_time, nullptr);
-        totalResizeTimemsecs += (get_us(resize_stop_time) - get_us(resize_start_time)) / 1000;
+        totalResizeTimemsecs = (get_us(resize_stop_time) - get_us(resize_start_time)) / 1000;
         gettimeofday(&start_time, nullptr);
 
         interpreter->Invoke();
 
         gettimeofday(&stop_time, nullptr);
 
-        totalGpuExecutionTimemsecs += (get_us(stop_time) - get_us(start_time)) / 1000;
+        totalGpuExecutionTimemsecs = (get_us(stop_time) - get_us(start_time)) / 1000;
 
         TfLiteTensor* output_locations    = interpreter->tensor(interpreter->outputs()[0]);
         float* depth  = TensorData<float>(output_locations, 0);
         cv::Mat depthImage(384, 640, CV_32FC1, depth);
+
+        gettimeofday(&colormap_start_time, nullptr);
 
         /// Noralization
         double minVal;
@@ -720,6 +738,15 @@ void TflitePydnet(void* pData)
         applyColorMap(_mask, map_img, cv::COLORMAP_PLASMA);
         cv::resize(map_img, holder_img, cv::Size(640, 480), 0, 0, cv::INTER_NEAREST);
         cv::cvtColor(holder_img, *rgbImage, CV_BGR2RGB);
+        gettimeofday(&colormap_end_time, nullptr);
+        totalColorMapTimesecs += (get_us(colormap_end_time) - get_us(colormap_start_time)) / 1000;
+
+        if (en_timing){
+            std::cout << std::endl <<  "Total resize time: " << totalResizeTimemsecs << "ms" << std::endl;
+            std::cout << "Total YuvRGB time: " << totalYuvRgbTimemsecs << "ms" << std::endl;
+            std::cout << "Total GPU time: " << totalGpuExecutionTimemsecs << "ms" <<  std::endl;
+            std::cout << "Total Colormap time: " << totalColorMapTimesecs << "ms" << std::endl;
+        }
 
         pImageMetadata.format         = IMAGE_FORMAT_RGB;
         pImageMetadata.size_bytes     = (imageWidth * imageHeight * 3);

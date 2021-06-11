@@ -54,6 +54,7 @@ char* PydnetModel     = (char*)"/usr/bin/dnn/tflite_pydnet.tflite";
 char* MobileNetModel  = (char*)"/usr/bin/dnn/mobilenet_v1_ssd_coco_labels.tflite";
 char* MobileNetLabels = (char*)"/usr/bin/dnn/mobilenet_v1_ssd_coco_labels.txt";
 bool en_debug = false;
+bool en_timing = false;
 
 // -----------------------------------------------------------------------------------------------------------------------------
 // Function prototypes
@@ -91,8 +92,9 @@ int ErrorCheck(int numInputsScanned, const char* pOptionName)
 void _print_usage()
 {
     printf("\nCommand line arguments are as follows:\n\n");
-    printf("-c, --config    :  load the config file only, for use by the config wizard\n");
-    printf("-d, --debug     : Verbose debug output (Default: Off)\n");
+    printf("-c, --config    : load the config file only, for use by the config wizard\n");
+    printf("-d, --debug     : enable verbose debug output (Default: Off)\n");
+    printf("-t, --timing    : enable timing output for model operations (Default: Off)\n");
     printf("-h              : Print this help message\n");
 }
 
@@ -105,6 +107,7 @@ static bool _parse_opts(int argc, char* argv[])
     {
         {"config",     required_argument, 0, 'm'},
         {"debug",      required_argument, 0, 'c'},
+        {"timing",     required_argument, 0, 't'},
         {"help",       no_argument,       0, 'h'},
         {0, 0, 0}
     };
@@ -112,7 +115,7 @@ static bool _parse_opts(int argc, char* argv[])
     while (1)
 	{
 		int option_index = 0;
-		int c = getopt_long(argc, argv, "cdh", long_options, &option_index);
+		int c = getopt_long(argc, argv, "cdth", long_options, &option_index);
 
 		// Detect the end of the options.
 		if (c == -1)
@@ -132,8 +135,13 @@ static bool _parse_opts(int argc, char* argv[])
             exit(0);
 
 		case 'd':
-			VOXL_LOG_INFO("Enabling debug mode");
+			VOXL_LOG_INFO("Enabling debug mode\n");
 			en_debug = true;
+			break;
+
+        case 't':
+			VOXL_LOG_INFO("Enabling timing mode\n");
+			en_timing = true;
 			break;
 
 		case 'h':
@@ -148,20 +156,6 @@ static bool _parse_opts(int argc, char* argv[])
 	}
 
 	return false;
-}
-
-static void _server_connect_cb(int ch, int client_id, char* name, void* context){
-        VOXL_LOG_INFO("\nClient Connected\n");
-        // ((TFliteModelExecute *)context)->resume()
-}
-
-
-static void _server_disconnect_cb(int ch, int client_id, char* name, void* context){
-        VOXL_LOG_INFO("\nClient Disconnected\n");
-    // if(!en_debug && pipe_server_get_num_clients(0) == 0){
-    //     ((TFliteModelExecute *)context)->pause();
-    // }
-
 }
 
 
@@ -197,9 +191,6 @@ int main(int argc, char *argv[])
 
     if (pTFliteModelExecute != NULL)
     {
-        pipe_server_set_disconnect_cb(0, _server_disconnect_cb, pTFliteModelExecute);
-        pipe_server_set_connect_cb(0, _server_connect_cb, pTFliteModelExecute);
-
         // The apps keeps running till Ctrl+C is pressed to terminate the program
         while (g_keepRunning)
         {

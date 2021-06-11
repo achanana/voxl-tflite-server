@@ -59,6 +59,7 @@ extern void* ThreadTflitePydnet(void* data); //from pData to data MJT
 extern void* ThreadSendImageData(void* data);
 
 extern bool en_debug;
+extern bool en_timing;
 char * pipeName;
 int frame_skip;
 
@@ -157,23 +158,6 @@ void TFliteModelExecute::PipeImageData(camera_image_metadata_t meta, uint8_t* pI
     }
 }
 
-void TFliteModelExecute::pause(){
-
-    pipe_client_close_all();
-
-}
-
-void TFliteModelExecute::resume(){
-
-    pipe_client_set_camera_helper_cb(0, _cam_helper_cb, this);
-    pipe_client_open(0,
-                     (char*) pipeName,
-                     "voxl-tflite-server",
-                     CLIENT_FLAG_EN_CAMERA_HELPER,
-                     0);
-
-}
-
 // camera helper callback whenever a frame arrives
 static void _cam_helper_cb(__attribute__((unused))int ch,
                                                   camera_image_metadata_t meta,
@@ -183,9 +167,6 @@ static void _cam_helper_cb(__attribute__((unused))int ch,
     static int n_skipped = 0;
     //Skip some frames
     if(n_skipped < frame_skip){
-		if(en_debug){
-			printf("\nskipping required frame\n");
-		}
 		n_skipped++;
 		return;
 	}
@@ -196,9 +177,36 @@ static void _cam_helper_cb(__attribute__((unused))int ch,
 		}
 		return;
 	}
+        if (((!en_debug) && (!en_timing))){
+            if (pipe_server_get_num_clients(OUTPUT_ID_RGB_IMAGE) == 0 ){
+                return;
+            }
+        }
 
     n_skipped = 0;
     // add check bytes in pipe
     ((TFliteModelExecute*) context)->PipeImageData(meta, (uint8_t*) frame);
     return;
+}
+
+void TFliteModelExecute::pause(){
+    fflush(stderr);
+    if (pipe_server_get_num_clients(0) == 0){
+        fprintf(stderr, "NO CLIENTS\n");
+    }
+    else {
+        fprintf(stderr, "CLIENTS\n");
+    }
+    printf("PAUSING TFLITE SERVER\n");
+    fflush(stderr);
+    //m_tfliteThreadData.stop        = true;
+    m_tfliteThreadData.tfliteReady = false;
+    m_tfliteThreadData.condVar.notify_all();
+}
+
+void TFliteModelExecute::resume(){
+    fprintf(stderr, "RESUMING TFLITE SERVER\n");
+    //m_tfliteThreadData.stop        = false;
+    m_tfliteThreadData.tfliteReady = true;
+    m_tfliteThreadData.condVar.notify_all();
 }

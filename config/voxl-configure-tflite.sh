@@ -88,6 +88,17 @@ set_param_string () {
 	sed -E -i "/\"$var\":/c\	\"$var\":	\"$2\"," ${CONFIG_FILE}
 }
 
+set_param_string_last () {
+	if [ "$#" != "2" ]; then
+		echo "set_param_string expected 2 args"
+		exit 1
+	fi
+	var=$1
+	var="${var%\"}"
+	var="${var#\"}"
+	sed -E -i "/\"$var\":/c\	\"$var\":	\"$2\"" ${CONFIG_FILE}
+}
+
 
 disable_service_and_exit () {
 	echo "disabling ${NAME} systemd service"
@@ -192,20 +203,16 @@ disable )
 done
 
 echo ""
-echo -e "do you want to run the tflite server with:\n (1) Mobilenet + Hires camera\n (2) Mobilenet + Tracking Camera\n (3) Pydnet + Hires camera"
-select opt in "1" "2" "3"; do
+echo -e "do you want to run the tflite server with:\n (1) Mobilenet + Hires camera\n (2) Mobilenet + Tracking camera\n"
+select opt in "1" "2"; do
 case $opt in
 1 )
-	set_param_string("model" "/usr/bin/dnn/mobilenet_v1_ssd_coco_labels.tflite")
-    set_param_string("input_pipe" "/run/mpa/hires_preview/")
+	set_param_string model "/usr/bin/dnn/mobilenet_v1_ssd_coco_labels.tflite"
+    set_param_string_last input_pipe "/run/mpa/hires_preview/"
 	break;;
 2 )
-	set_param_string("model" "/usr/bin/dnn/mobilenet_v1_ssd_coco_labels.tflite")
-    set_param_string("input_pipe" "/run/mpa/tracking/")
-	break;;
-3 )
-    set_param_string("model" "/usr/bin/dnn/tflite_pydnet.tflite")
-    set_param_string("input_pipe" "/run/mpa/hires_preview/")
+	set_param_string model "/usr/bin/dnn/mobilenet_v1_ssd_coco_labels.tflite"
+    set_param_string_last input_pipe "/run/mpa/tracking/"
 	break;;
 *)
 	echo "invalid option"
