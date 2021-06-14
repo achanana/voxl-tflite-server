@@ -18,7 +18,7 @@ Build steps
 
 Steps to run
 ============
-The tflite-server supports hires or tracking input for object detection (mobilenet) and hires for monocular depth estimation (pydnet). Specify camera input with -c 0 for hires, -c 1 for tracking.
+The tflite-server supports hires or tracking input for object detection (mobilenet). Setup your configuration using the voxl-configure-tflite script.
 ## VOXL-STREAMER
 1. (VOXL-1) adb shell
 1. (VOXL-1) bash
@@ -48,7 +48,7 @@ To view the output rtsp stream, open VLC media player. Select media, open networ
     - Select "Image"
     - Change Display Name to "My-Camera-Image"
     - On the left column expand the "My-Camera-Image"
-    - Click on the "Image Topic" and in the right column enter "/voxl_hires_image" 
+    - Click on the "Image Topic" and in the right column enter "/voxl_hires_image"
 1. (PC) adb shell
 1. (VOXL-Terminal-2) voxl-camera-server
 1. (PC) adb shell
@@ -56,7 +56,7 @@ To view the output rtsp stream, open VLC media player. Select media, open networ
 1. (PC) adb shell
 1. (PC) source /opt/ros/indigo/setup.bash
 1. (VOXL-Terminal-4) vi /opt/ros/indigo/share/voxl_mpa_cam_ros/launch/voxl_mpa_cam_ros.launch
-    * Change line 15 to the new pipe name "default="/run/mpa/tflite/image/"    
+    * Change line 15 to the new pipe name "default="/run/mpa/tflite/image/"
 1. (VOXL-Terminal-4) python /usr/bin/launch_voxl_mpa_cam_ros.py
 1. In order to run the pydnet model
     * (VOXL) voxl-tflite-server -m pydnet
