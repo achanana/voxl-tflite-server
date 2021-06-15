@@ -323,7 +323,7 @@ void TFliteMobileNet(void* pData)
 
     // Inform the camera frames receiver that tflite processing is ready to receive frames and start processing
     pThreadData->tfliteReady = true;
-    fprintf(stderr, "\n------Setting TFLiteThread to ready!! W: %d H: %d C:%d",
+    fprintf(stderr, "\n------Setting TFLiteThread to ready!! W: %d H: %d C:%d\n",
             modelImageWidth, modelImageHeight, modelImageChannels);
 
     int queueProcessIdx = 0;
@@ -347,7 +347,7 @@ void TFliteMobileNet(void* pData)
         numFrames++;
         TFLiteMessage* pTFLiteMessage           = &pThreadData->pMsgQueue->queue[queueProcessIdx];
         if (en_debug){
-            fprintf(stderr, "\n------Popping index %d frame %d ...... Queue size: %d",
+            fprintf(stderr, "\n------Popping index %d frame %d ...... Queue size: %d\n",
                 queueProcessIdx, pTFLiteMessage->metadata.frame_id,
                 abs(pThreadData->pMsgQueue->queueInsertIdx - queueProcessIdx));
         }
