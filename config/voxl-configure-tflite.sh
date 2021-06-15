@@ -47,6 +47,7 @@ print_usage () {
 	echo "factory_enable will reset the config file to factory defaults"
 	echo "before enabling the service."
 	echo ""
+	echo "voxl-configure-tflite-server factory_disable"
 	echo "voxl-configure-tflite-server disable"
 	echo "voxl-configure-tflite-server factory_enable"
 	echo "voxl-configure-tflite-server enable"
@@ -147,6 +148,10 @@ case ${arg} in
 	"h"|"-h"|"help"|"--help")
 		print_usage
 		exit 0
+		;;
+	"factory_disable")
+		reset_config_file_to_default
+		disable_service_and_exit
 		;;
 	"disable")
 		disable_service_and_exit
