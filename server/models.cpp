@@ -420,10 +420,10 @@ void TFliteMobileNet(void* data)
                 int width  = right - left;
 
                 cv::Rect rect(left, top, width, height);
-                cv::Point pt(left, top);
+                cv::Point pt(left, top-10);
 
-                cv::rectangle(input_img, rect, cv::Scalar(0, 200, 0), 7);
-                cv::putText(input_img, labels[detected_classes[i]], pt, cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255), 2);
+                cv::rectangle(input_img, rect, cv::Scalar(0), 7);
+                cv::putText(input_img, labels[detected_classes[i]], pt, cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0), 2);
             }
         }
         meta.format         = IMAGE_FORMAT_RAW8;
