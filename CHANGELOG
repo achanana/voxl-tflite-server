@@ -1,2 +1,7 @@
+0.1.0
+    * mobilenet v2
+    * add our own resize function
+0.0.4
+    * first release
 0.0.3
     * Rename Repo to voxl-tflite-server
