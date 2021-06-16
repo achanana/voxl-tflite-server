@@ -1,6 +1,6 @@
 # voxl-tflite-server
 
-Use mobilenet for object detection through tensorflow lite on VOXL.
+Use mobilenet for object detection via tensorflow lite on VOXL.
 
 dependencies:
 * libmodal_pipe
@@ -11,7 +11,6 @@ dependencies:
 This README covers building this package.
 
 ## Build Instructions
-===========
 
 1) prerequisite: latest voxl-cross docker image
 
