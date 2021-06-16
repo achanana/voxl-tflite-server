@@ -44,6 +44,7 @@
 #include "optional_debug_tools.h"
 #include "utils.h"
 #include "threads.h"
+#include "undistort.h"
 #include <opencv2/opencv.hpp>
 #include <opencv2/imgproc/types_c.h>
 
@@ -54,6 +55,7 @@ namespace tflite
 namespace label_image
 {
 
+// generic template for TensorData*
 template<typename T>
 T* TensorData(TfLiteTensor* tensor, int batch_index);
 
@@ -141,7 +143,7 @@ TfLiteDelegatePtr CreateGPUDelegate(Settings* s)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Gets all the available delegates
+// Gets all the available delegates, returns the delegate map*
 ////////////////////////////////////////////////////////////////////////////////
 TfLiteDelegatePtrMap GetDelegates(Settings* s)
 {
@@ -202,30 +204,21 @@ void TFliteMobileNet(void* data)
     std::unique_ptr<tflite::Interpreter>                interpreter;
     tflite::ops::builtin::BuiltinOpResolver             resolver;
     tflite::label_image::Settings* tflite_settings      = NULL;
-    cv::Mat* rgb_img                                    = new cv::Mat();
-    cv::Mat resized_img;
     TFliteThreadData* mobilenet_data                    = (TFliteThreadData*)data;
-    camera_image_metadata_t meta;
-    uint64_t start_time, end_time, total_rgb_time, total_resize_time, total_tensor_time, total_model_time;
-
     pipe_info_t tflite_pipe                             = {"tflite", MPA_TFLITE_PATH, "camera_image_metadata_t", PROCESS_NAME, 16*1024*1024, 0};
     pipe_server_create(TFLITE_CH, tflite_pipe, 0);
-
+    cv::Mat input_img, resized_img;
+    camera_image_metadata_t meta;
+    uint64_t start_time, end_time;
+    float total_resize_time, total_tensor_time, total_model_time;
     tflite_settings = new tflite::label_image::Settings;
 
     tflite_settings->model_name                   = mobilenet_data->model_file;
     tflite_settings->labels_file_name             = mobilenet_data->labels_file;
-    tflite_settings->input_bmp_name               = "";
-    tflite_settings->gl_backend                   = 1; ///<@todo Is there a CL backend?
+    tflite_settings->gl_backend                   = 1;
     tflite_settings->number_of_threads            = 4;
     tflite_settings->allow_fp16                   = 1;
     tflite_settings->input_mean                   = 127;
-    tflite_settings->accel                        = 0;
-    tflite_settings->old_accel                    = 0;
-    tflite_settings->max_profiling_buffer_entries = 0;
-    tflite_settings->profiling                    = 0;
-    tflite_settings->verbose                      = 0;
-    tflite_settings->number_of_warmup_runs        = 0;
     tflite_settings->loop_count                   = 1;
 
     if (!tflite_settings->model_name.c_str()){
@@ -241,9 +234,9 @@ void TFliteMobileNet(void* data)
     }
 
     tflite_settings->model = model.get();
-    printf("Loaded model %s\n", tflite_settings->model_name.c_str());
+    if (mobilenet_data->en_debug) printf("Loaded model %s\n", tflite_settings->model_name.c_str());
     model->error_reporter();
-    printf("Resolved reporter\n");
+    if (mobilenet_data->en_debug) printf("Resolved reporter\n");
 
     tflite::InterpreterBuilder(*model, resolver)(&interpreter);
 
@@ -267,7 +260,7 @@ void TFliteMobileNet(void* data)
             break;
         }
         else{
-            printf("Applied delegate \n");
+             if (mobilenet_data->en_debug) printf("Applied delegate \n");
             break;
         }
     }
@@ -287,25 +280,26 @@ void TFliteMobileNet(void* data)
     pid_t tid = syscall(SYS_gettid);
     int which = PRIO_PROCESS;
     int nice  = -15;
-
     setpriority(which, tid, nice);
+
+    // bilinear resize struct + setup
+    undistort_map_t map;
+    mcv_init_resize_map(640, 480, model_img_width, model_img_height, &map);
 
     // Inform the camera frames receiver that tflite processing is ready to receive frames and start processing
     mobilenet_data->thread_ready = true;
     fprintf(stderr, "\n------Setting TFLiteThread to ready!! W: %d H: %d C:%d",
             model_img_width, model_img_height, model_img_channels);
 
-    int queue_process_idx = 0;
-    total_rgb_time = 0;
-    total_tensor_time = 0;
-    total_resize_time = 0;
-    total_model_time = 0;
-    int num_frames = 0;
+    int queue_process_idx          = 0;
+    total_tensor_time              = 0;
+    total_resize_time              = 0;
+    total_model_time               = 0;
+    int num_frames                 = 0;
+    uint8_t resize_output[300*300] = {0};
 
-    while (mobilenet_data->stop == false)
-    {
-        if (queue_process_idx == mobilenet_data->camera_queue->insert_idx)
-        {
+    while (mobilenet_data->stop == false){
+        if (queue_process_idx == mobilenet_data->camera_queue->insert_idx){
             std::unique_lock<std::mutex> lock(mobilenet_data->cond_mutex);
             mobilenet_data->cond_var.wait(lock);
             continue;
@@ -325,40 +319,21 @@ void TFliteMobileNet(void* data)
         }
 
         meta = new_frame->metadata;
-
         int img_width    = meta.width;
         int img_height   = meta.height;
         int img_channels = 3;
 
+        input_img = cv::Mat(img_height, img_width, CV_8UC1, (uchar*)new_frame->image_pixels);
         start_time = rc_nanos_monotonic_time();
-        if (new_frame->metadata.format == IMAGE_FORMAT_NV12){
-            cv::Mat yuv(img_height + img_height/2, img_width, CV_8UC1, (uchar*)new_frame->image_pixels);
-            cv::cvtColor(yuv, *rgb_img, CV_YUV2RGB_NV21); // time + opencl
-        }
-        else {
-            cv::Mat yuv(img_height, img_width, CV_8UC1, (uchar*)new_frame->image_pixels);
-            cv::Mat in[] = {yuv, yuv, yuv};
-            cv::merge(in, 3, *rgb_img);
-        }
+        mcv_resize_image(input_img.data, resize_output, &map);
         end_time = rc_nanos_monotonic_time();
         if (mobilenet_data->en_timing){
-            printf("RGB reconstruct time:  %6.2fms\n", ((double)(end_time-start_time))/1000000.0);
-            total_rgb_time += ((end_time-start_time)/1000000.0);
+            printf("\nImage resize time:          %6.2fms\n", ((double)(end_time-start_time))/1000000.0);
+            total_resize_time += (end_time-start_time);
         }
-
-        start_time = rc_nanos_monotonic_time();
-        cv::resize(*rgb_img,
-               resized_img,
-               cv::Size(model_img_width, model_img_height),
-               0,
-               0,
-               CV_INTER_LINEAR);
-        end_time = rc_nanos_monotonic_time();
-        if (mobilenet_data->en_timing){
-            printf("CV resize time:  %6.2fms\n", ((double)(end_time-start_time))/1000000.0);
-            total_resize_time += ((end_time-start_time)/1000000.0);
-        }
-
+        cv::Mat resized(300, 300, CV_8UC1, (uchar*)resize_output);
+        cv::Mat in[] = {resized, resized, resized};
+        cv::merge(in, 3, resized_img);
 
         uint8_t*               pImageData = (uint8_t*)resized_img.data;
 
@@ -369,17 +344,30 @@ void TFliteMobileNet(void* data)
         int input = interpreter->inputs()[0];
 
         switch (interpreter->tensor(input)->type){
-            case kTfLiteFloat32:
+            case kTfLiteFloat32: {
                 tflite_settings->input_floating = true;
                 start_time = rc_nanos_monotonic_time();
-                resize<float>(interpreter->typed_tensor<float>(input), pImageData,
-                                model_img_height, model_img_width, img_channels, model_img_height,
-                                model_img_width, model_img_channels, tflite_settings);
+                float* dst = TensorData<float>(interpreter->tensor(input), 0);
+                const int row_elems = model_img_width * model_img_channels;
+                for (int row = 0; row < model_img_height; row++) {
+                    const uchar* row_ptr = resized_img.ptr(row);
+                    for (int i = 0; i < row_elems; i++) {
+                        dst[i] = (row_ptr[i] - 127.0f) / 127.0f;
+                    }
+                    dst += row_elems;
+                }
                 end_time = rc_nanos_monotonic_time();
                 if (mobilenet_data->en_timing){
                     printf("Tflite tensor resize time:  %6.2fms\n", ((double)(end_time-start_time))/1000000.0);
-                    total_tensor_time += ((end_time-start_time)/1000000.0);
+                    total_tensor_time += (end_time-start_time);
                 }
+            }
+                break;
+
+            case kTfLiteUInt8:
+                resize<uint8_t>(interpreter->typed_tensor<uint8_t>(input), pImageData,
+                            model_img_height, model_img_width, img_channels, model_img_height,
+                            model_img_width, model_img_channels, tflite_settings);
                 break;
 
             default:
@@ -394,8 +382,8 @@ void TFliteMobileNet(void* data)
         }
         end_time = rc_nanos_monotonic_time();
         if (mobilenet_data->en_timing){
-            printf("Model execution time:  %6.2fms\n", ((double)(end_time-start_time))/1000000.0);
-            total_model_time += ((end_time-start_time)/1000000.0);
+            printf("Model execution time:       %6.2fms\n", ((double)(end_time-start_time))/1000000.0);
+            total_model_time += (end_time-start_time);
         }
 
         // https://www.tensorflow.org/lite/models/object_detection/overview#starter_model
@@ -426,7 +414,7 @@ void TFliteMobileNet(void* data)
             // Check for object detection confidence of 60% or more
             if (score > 0.6f){
                 if (mobilenet_data->en_debug){
-                    std::cout << std::endl << "Detected: " << labels[detected_classes[i]] <<  ", Confidence: " << score << std::endl;
+                    printf("Detected: %s, Confidence: %6.2f\n", labels[detected_classes[i]].c_str(), (double)score);
                 }
                 int height = bottom - top;
                 int width  = right - left;
@@ -434,33 +422,31 @@ void TFliteMobileNet(void* data)
                 cv::Rect rect(left, top, width, height);
                 cv::Point pt(left, top);
 
-                cv::rectangle(*rgb_img, rect, cv::Scalar(0, 200, 0), 7);
-                cv::putText(*rgb_img,
-                            labels[detected_classes[i]], pt, cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255, 0, 0), 2);
+                cv::rectangle(input_img, rect, cv::Scalar(0, 200, 0), 7);
+                cv::putText(input_img, labels[detected_classes[i]], pt, cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255), 2);
             }
         }
-        meta.format         = IMAGE_FORMAT_RGB;
+        meta.format         = IMAGE_FORMAT_RAW8;
         meta.size_bytes     = (img_height * img_width * 3);
         meta.stride         = (img_width * 3);
-        if (rgb_img->data != NULL){
-                pipe_server_write_camera_frame(TFLITE_CH, meta, (char*)rgb_img->data);
-        }
 
+        if (input_img.data != NULL){
+                pipe_server_write_camera_frame(TFLITE_CH, meta, (char*)input_img.data);
+        }
         queue_process_idx = ((queue_process_idx + 1) % QUEUE_SIZE);
     }
+
     if (mobilenet_data->en_timing){
-        std::cout << std::endl << "Average RGB re-creation time: " << total_rgb_time/num_frames << "ms" << std::endl;
-        std::cout << "Average OpenCV resize time: " << total_resize_time/num_frames << "ms" << std::endl;
-        std::cout << "Average in/out tensor resize time: " << total_tensor_time/num_frames << "ms" << std::endl;
-        std::cout << "Average GPU model execution time: " << total_model_time/num_frames << "ms" << std::endl;
-    }
-    if (tflite_settings != NULL){
-        delete tflite_settings;
+        printf("\n------------------------------------------\n");
+        printf("TIMING STATS (on %d processed frames)\n", num_frames);
+        printf("------------------------------------------\n");
+        printf("Image resize time   -> Total: %6.2fms, Average: %6.2fms\n", (double)(total_resize_time/1000000), (double)((total_resize_time/(1000000* num_frames))));
+        printf("Tensor resize time  -> Total: %6.2fms, Average: %6.2fms\n", (double)(total_tensor_time/1000000), (double)((total_tensor_time/(1000000* num_frames))));
+        printf("Model GPU execution -> Total: %6.2fms, Average: %6.2fms\n", (double)(total_model_time/1000000), (double)((total_model_time/(1000000* num_frames))));
     }
 
-    if (rgb_img != NULL){
-        delete rgb_img;
-        rgb_img = NULL;
+    if (tflite_settings != NULL){
+        delete tflite_settings;
     }
 }
 } //namespace

@@ -1,64 +1,75 @@
 # voxl-tflite-server
 
-How to use tensorflow-lite on VOXL
+Use mobilenet for object detection through tensorflow lite on VOXL.
 
-Build steps
+dependencies:
+* libmodal_pipe
+* libmodal_json
+* opencv
+* voxl-tflite
+
+This README covers building this package.
+
+## Build Instructions
 ===========
-1. (PC) Build the voxl-cross docker from [here](https://gitlab.com/voxl-public/utilities/voxl-docker)
-    * ./install-cross-docker.sh
-1. (PC) mkdir my-git-source-code
-1. (PC) cd my-git-source-code
-1. (PC) git clone git@gitlab.com:voxl-public/modal-pipe-architecture/voxl-tflite-server.git
-1. (PC) cd <path-to>/voxl-tflite-server/
-1. (PC) voxl-docker -i voxl-cross
-1. (PC_CROSS_DOCKER) ./install_build_deps.sh
-1. (PC_CROSS_DOCKER) ./clean.sh
-1. (PC_CROSS_DOCKER) ./build.sh
-1. (PC_CROSS_DOCKER) ./make_package.sh
 
-Steps to run
-============
-The tflite-server supports hires or tracking input for object detection (mobilenet). Setup your configuration using the voxl-configure-tflite script.
-## VOXL-STREAMER
-1. (VOXL-1) adb shell
-1. (VOXL-1) bash
-1. (VOXL-1) voxl-camera-server -c /etc/modalai/voxl-camera-server.conf
-1. (VOXL-2) adb shell
-1. (VOXL-2) bash
-1. (VOXL-2) voxl-tflite-server -m mobilenet (or -m pydnet)
-1. (VOXL-3) adb shell
-1. (VOXL-3) bash
-1. (VOXL-3) voxl-streamer <br>
-To view the output rtsp stream, open VLC media player. Select media, open network stream, and the URL will be rtsp://YOUR-VOXL-IP-ADDRESS:8900/live
+1) prerequisite: latest voxl-cross docker image
 
-## MPA to ROS
-1. (PC) cd <path-to>/voxl-tflite-server/
-1. (PC) ./install_on_voxl.sh
-1. (PC) adb shell
-1. (VOXL-Terminal-1) export ROS_IP=IP-ADDRESS-OF-VOXL
-1. (VOXL-Terminal-1) source /opt/ros/indigo/setup.bash
-1. (VOXL-Terminal-1) roscore
-    * It should print a line that looks something like: ROS_MASTER_URI=http://AAA.BBB.CCC.DDD:XYZW/
-1. (PC) source /opt/ros/kinetic/setup.bash
-1. (PC) export ROS_IP=IP-ADDRESS-OF-PC
-1. (PC) source /opt/ros/xxxx/setup.bash
-1. (PC) export ROS_MASTER_URI=http://AAA.BBB.CCC.DDD:XYZW/
-1. (PC) rviz
-    - Click on "Add" at the bottom-left
-    - Select "Image"
-    - Change Display Name to "My-Camera-Image"
-    - On the left column expand the "My-Camera-Image"
-    - Click on the "Image Topic" and in the right column enter "/voxl_hires_image"
-1. (PC) adb shell
-1. (VOXL-Terminal-2) voxl-camera-server
-1. (PC) adb shell
-1. (VOXL-Terminal-3) voxl-tflite-server -m mobilenet
-1. (PC) adb shell
-1. (PC) source /opt/ros/indigo/setup.bash
-1. (VOXL-Terminal-4) vi /opt/ros/indigo/share/voxl_mpa_cam_ros/launch/voxl_mpa_cam_ros.launch
-    * Change line 15 to the new pipe name "default="/run/mpa/tflite/image/"
-1. (VOXL-Terminal-4) python /usr/bin/launch_voxl_mpa_cam_ros.py
-1. In order to run the pydnet model
-    * (VOXL) voxl-tflite-server -m pydnet
-    * (VOXL) Check the outputs in the /usr/bin/dnn/data directory
-    * (VOXL) The output files are the ones that have "-depth" in the filename
+Follow the instructions here:
+
+https://gitlab.com/voxl-public/voxl-docker
+
+
+2) Launch Docker and make sure this project directory is mounted inside the Docker.
+
+```bash
+~/git/voxl-tflite-server# voxl-docker -i voxl-cross
+bash-4.3$ ls
+README.md         clean.sh  include                ipk              service
+bash_completions  config    install_build_deps.sh  make_package.sh
+build.sh          dnn       install_on_voxl.sh     server
+
+3) Install dependencies inside the docker. Specify the dependencies should be pulled from either the development (dev) or stable modalai package repos. If building the master branch you should specify `stable`, otherwise `dev`.
+
+```bash
+./install_build_deps.sh stable
+```
+
+4) Compile inside the docker.
+
+```bash
+./build.sh
+```
+
+5) Make an ipk package inside the docker.
+
+```bash
+./make_package.sh
+Package Name:  voxl-tflite-server
+version Number:  x.x.x
+ar: creating voxl-tflite-server_x.x.x.ipk
+
+DONE
+```
+
+This will make a new voxl-tflite-server_x.x.x.ipk file in your working directory. The name and version number came from the ipk/control/control file. If you are updating the package version, edit it there.
+
+
+## Deploy to VOXL
+
+You can now push the ipk package to the VOXL and install with opkg however you like. To do this over ADB, you may use the included helper script: install_on_voxl.sh.
+
+Do this OUTSIDE of docker as your docker image probably doesn't have usb permissions for ADB.
+
+```bash
+~/git/voxl-tflite-server$ ./install_on_voxl.sh
+pushing voxl-tflite-server_x.x.x.ipk to target
+searching for ADB device
+adb device found
+voxl-tflite-server_x.x.x.ipk: 1 file pushed. 2.1 MB/s (51392 bytes in 0.023s)
+Removing package voxl-tflite-server from root...
+Installing voxl-tflite-server (x.x.x) on root.
+Configuring voxl-tflite-server
+
+Done installing voxl-tflite-server
+```

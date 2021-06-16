@@ -45,7 +45,6 @@
 // model thread
 extern void* ThreadMobileNet(void* data);
 
-
 // forward declaration
 static void _cam_helper_cb(__attribute__((unused))int ch,
                                                   camera_image_metadata_t meta,
@@ -72,7 +71,7 @@ TFliteModelExecute::TFliteModelExecute(struct TFliteThreadData* init_data)
     pthread_attr_init(&thread_attributes);
     pthread_attr_setdetachstate(&thread_attributes, PTHREAD_CREATE_JOINABLE);
 
-    if (!strcmp(model_thread_data.model_file, "/usr/bin/dnn/mobilenet_v1_ssd_coco_labels.tflite")){
+    if (!strcmp(model_thread_data.model_file, "/usr/bin/dnn/ssdlite_mobilenet_v2_coco.tflite")){
         pthread_create(&(model_thread_data.thread), &thread_attributes, ThreadMobileNet, &model_thread_data);
     }
     else{

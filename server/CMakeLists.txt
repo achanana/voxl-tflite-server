@@ -1,5 +1,5 @@
 ################################################################################
-# * Copyright 2020 ModalAI Inc.
+# * Copyright 2021 ModalAI Inc.
 # *
 # * Redistribution and use in source and binary forms, with or without
 # * modification, are permitted provided that the following conditions are met:
@@ -32,9 +32,15 @@
 ################################################################################
 cmake_minimum_required(VERSION 3.3)
 
-set(CMAKE_BUILD_TYPE "Release")
-set(CMAKE_CXX_FLAGS "-std=c++11 -Wno-attributes -march=armv8-a ")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g -pthread -Wall -fPIC")
+# James' standard list of cmake flags
+set(CMAKE_C_FLAGS "-std=gnu99 -Wall -Wextra -Wuninitialized \
+	-Wunused-variable -Wdouble-promotion -Wmissing-prototypes \
+	-Wmissing-declarations -Werror=undef -Wno-unused-function ${CMAKE_C_FLAGS}")
+
+set(CMAKE_CXX_FLAGS "-std=gnu++11 -Wall -Wextra -Wuninitialized -Wno-attributes \
+    -Wunused-variable -Wno-double-promotion -Wno-missing-field-initializers \
+    -Werror=undef -Wno-unused-function ${CMAKE_CXX_FLAGS}")
+
 set(PROJECT_NAME voxl-tflite-server)
 
 file(GLOB_RECURSE all_src_files "*.c*")
@@ -42,9 +48,6 @@ add_executable(${PROJECT_NAME} ${all_src_files})
 
 include_directories(
   /usr/include/opencv4/
-  ../include
-  ../include/common
-  ../include/gpu
   /usr/include/tensorflow-2-2-x/
   /usr/include/tensorflow-2-2-x/tensorflow
   /usr/include/tensorflow-2-2-x/tensorflow/lite/tools/make/downloads/absl/memory/
@@ -101,5 +104,5 @@ install(
     TARGETS ${PROJECT_NAME}
     LIBRARY			  DESTINATION /usr/lib
     RUNTIME			  DESTINATION /usr/bin
-    PUBLIC_HEADER	DESTINATION /usr/include
+    PUBLIC_HEADER	  DESTINATION /usr/include
  )

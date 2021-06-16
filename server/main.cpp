@@ -42,9 +42,7 @@
 #include "config_file.h"
 
 
-char* pydnet_model     = (char*)"/usr/bin/dnn/tflite_pydnet.tflite";
-char* mobilenet_model  = (char*)"/usr/bin/dnn/mobilenet_v1_ssd_coco_labels.tflite";
-char* mobilenet_labels  = (char*)"/usr/bin/dnn/mobilenet_v1_ssd_coco_labels.txt";
+char* coco_labels  = (char*)"/usr/bin/dnn/coco_labels.txt";
 bool en_debug = false;
 bool en_timing = false;
 
@@ -154,7 +152,7 @@ int main(int argc, char *argv[])
     data.input_pipe  = input_pipe;
     data.en_debug    = en_debug;
     data.en_timing   = en_timing;
-    data.labels_file = mobilenet_labels;
+    data.labels_file = coco_labels;
     data.model_file  = model;
 
     fprintf(stderr, "\n------VOXL TFLite Server------\n\n");
