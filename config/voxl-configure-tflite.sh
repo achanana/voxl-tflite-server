@@ -212,11 +212,11 @@ echo -e "do you want to run the tflite server with:\n (1) Mobilenet + Hires came
 select opt in "1" "2"; do
 case $opt in
 1 )
-	set_param_string model "/usr/bin/dnn/mobilenet_v1_ssd_coco_labels.tflite"
+	set_param_string model "/usr/bin/dnn/ssdlite_mobilenet_v2_coco.tflite"
     set_param_string_last input_pipe "/run/mpa/hires_preview/"
 	break;;
 2 )
-	set_param_string model "/usr/bin/dnn/mobilenet_v1_ssd_coco_labels.tflite"
+	set_param_string model "/usr/bin/dnn/ssdlite_mobilenet_v2_coco.tflite"
     set_param_string_last input_pipe "/run/mpa/tracking/"
 	break;;
 *)
