@@ -28,7 +28,7 @@ README.md         clean.sh  include                ipk              service
 bash_completions  config    install_build_deps.sh  make_package.sh
 build.sh          dnn       install_on_voxl.sh     server
 
-3) Install dependencies inside the docker. Specify the dependencies should be pulled from either the development (dev) or stable modalai package repos. If building the master branch you should specify `stable`, otherwise `dev`.
+3) Install dependencies inside the docker. Specify where the dependencies should be pulled from, either the development (dev) or stable modalai package repos. If building the master branch you should specify `stable`, otherwise `dev`.
 
 ```bash
 ./install_build_deps.sh stable
