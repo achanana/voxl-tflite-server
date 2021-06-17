@@ -46,13 +46,13 @@ fi
 # fetch last word from the version string
 CURRENT_VERSION=${V_STRING##* }
 
-## print what's going on
-echo "${PACKAGE_NAME} installer detected system image ${CURRENT_VERSION}"
-
 
 if [ "$(version "${CURRENT_VERSION}")" -ge "$(version "${MIN_VERSION}")" ]; then
 	exit 0
 else
+
+	## print what's going on
+	echo "${PACKAGE_NAME} installer detected system image ${CURRENT_VERSION}"
 	echo ""
 	echo "ERROR, this version of ${PACKAGE_NAME} requires system image>=${MIN_VERSION}"
 	echo "if you know what you are doing, you can continue the install anyway"
