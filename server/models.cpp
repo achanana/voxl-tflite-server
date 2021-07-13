@@ -427,8 +427,8 @@ void TFliteMobileNet(void* data)
             }
         }
         meta.format         = IMAGE_FORMAT_RAW8;
-        meta.size_bytes     = (img_height * img_width * 3);
-        meta.stride         = (img_width * 3);
+        meta.size_bytes     = (img_height * img_width);
+        meta.stride         = (img_width);
 
         if (input_img.data != NULL){
                 pipe_server_write_camera_frame(TFLITE_CH, meta, (char*)input_img.data);
