@@ -1,3 +1,6 @@
+0.1.2
+    * handling for any input size
+    * defaults to color output when hires input is selected (reverted)
 0.1.1
     * patch for raw8 out
 0.1.0
