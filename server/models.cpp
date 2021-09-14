@@ -39,14 +39,20 @@
 #include <sys/types.h>
 #include <sys/resource.h>
 #include <unistd.h>
-#include "memory.h"
-#include "bitmap_helpers.h"
-#include "optional_debug_tools.h"
-#include "utils.h"
 #include "threads.h"
 #include "undistort.h"
 #include <opencv2/opencv.hpp>
 #include <opencv2/imgproc/types_c.h>
+////////////////////////////////////////////////////////////////////////////////
+//      ***********************WARNING************************
+//      INCLUDE TENSORFLOW HEADERS *AFTER* LIBMODAL PIPE HEADERS
+//      OTHERWISE WILL SET __ANDROID__ FLAG
+//      *********************END WARNING**********************
+////////////////////////////////////////////////////////////////////////////////
+#include "memory.h"
+#include "bitmap_helpers.h"
+#include "optional_debug_tools.h"
+#include "utils.h"
 
 #define MPA_TFLITE_PATH (MODAL_PIPE_DEFAULT_BASE_DIR "tflite/")
 
