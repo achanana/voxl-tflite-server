@@ -19,6 +19,6 @@ set -e
 
 mkdir -p build
 cd build
-cmake -DCMAKE_TOOLCHAIN_FILE=/opt/cross_toolchain/aarch64-gnu-4.9.toolchain.cmake -DCMAKE_BUILD_TYPE=RELEASE -DENABLE_NEON=ON -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS} -std=c++11 -march=armv8-a" ../server
+cmake -DCMAKE_TOOLCHAIN_FILE=/opt/cross_toolchain/aarch64-gnu-4.9.toolchain.cmake -DCMAKE_BUILD_TYPE=RELEASE -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS} -std=c++11 -march=armv8-a" ../server
 
 make -j 4 TARGET=aarch64 TARGET_TOOLCHAIN_PREFIX=aarch64-linux-gnu-

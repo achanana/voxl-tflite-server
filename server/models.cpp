@@ -39,14 +39,20 @@
 #include <sys/types.h>
 #include <sys/resource.h>
 #include <unistd.h>
-#include "memory.h"
-#include "bitmap_helpers.h"
-#include "optional_debug_tools.h"
-#include "utils.h"
 #include "threads.h"
 #include "undistort.h"
 #include <opencv2/opencv.hpp>
 #include <opencv2/imgproc/types_c.h>
+////////////////////////////////////////////////////////////////////////////////
+//      ***********************WARNING************************
+//      INCLUDE TENSORFLOW HEADERS *AFTER* LIBMODAL PIPE HEADERS
+//      OTHERWISE WILL SET __ANDROID__ FLAG
+//      *********************END WARNING**********************
+////////////////////////////////////////////////////////////////////////////////
+#include "memory.h"
+#include "bitmap_helpers.h"
+#include "optional_debug_tools.h"
+#include "utils.h"
 
 #define MPA_TFLITE_PATH (MODAL_PIPE_DEFAULT_BASE_DIR "tflite/")
 
@@ -207,11 +213,16 @@ void TFliteMobileNet(void* data)
     TFliteThreadData* mobilenet_data                    = (TFliteThreadData*)data;
     pipe_info_t tflite_pipe                             = {"tflite", MPA_TFLITE_PATH, "camera_image_metadata_t", PROCESS_NAME, 16*1024*1024, 0};
     pipe_server_create(TFLITE_CH, tflite_pipe, 0);
-    cv::Mat input_img, resized_img;
+    cv::Mat input_img, resized_img, output_img;
+    static bool color = false;
     camera_image_metadata_t meta;
     uint64_t start_time, end_time;
     float total_resize_time, total_tensor_time, total_model_time;
     tflite_settings = new tflite::label_image::Settings;
+
+    if (!strcmp(mobilenet_data->input_pipe, "/run/mpa/hires_preview/")){
+        color = true;
+    }
 
     tflite_settings->model_name                   = mobilenet_data->model_file;
     tflite_settings->labels_file_name             = mobilenet_data->labels_file;
@@ -282,10 +293,6 @@ void TFliteMobileNet(void* data)
     int nice  = -15;
     setpriority(which, tid, nice);
 
-    // bilinear resize struct + setup
-    undistort_map_t map;
-    mcv_init_resize_map(640, 480, model_img_width, model_img_height, &map);
-
     // Inform the camera frames receiver that tflite processing is ready to receive frames and start processing
     mobilenet_data->thread_ready = true;
     fprintf(stderr, "\n------Setting TFLiteThread to ready!! W: %d H: %d C:%d",
@@ -323,7 +330,18 @@ void TFliteMobileNet(void* data)
         int img_height   = meta.height;
         int img_channels = 3;
 
+        // bilinear resize struct + setup
+        undistort_map_t map;
+        mcv_init_resize_map(img_width, img_height, model_img_width, model_img_height, &map);
+
         input_img = cv::Mat(img_height, img_width, CV_8UC1, (uchar*)new_frame->image_pixels);
+
+        if (color){
+            cv::Mat yuv(img_height + img_height/2, img_width, CV_8UC1, (uchar*)new_frame->image_pixels);
+            cv::cvtColor(yuv, output_img, CV_YUV2RGB_NV21);
+        }
+        else output_img = input_img.clone();
+
         start_time = rc_nanos_monotonic_time();
         mcv_resize_image(input_img.data, resize_output, &map);
         end_time = rc_nanos_monotonic_time();
@@ -422,16 +440,23 @@ void TFliteMobileNet(void* data)
                 cv::Rect rect(left, top, width, height);
                 cv::Point pt(left, top-10);
 
-                cv::rectangle(input_img, rect, cv::Scalar(0), 7);
-                cv::putText(input_img, labels[detected_classes[i]], pt, cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0), 2);
+                cv::rectangle(output_img, rect, cv::Scalar(0), 7);
+                cv::putText(output_img, labels[detected_classes[i]], pt, cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0), 2);
             }
         }
-        meta.format         = IMAGE_FORMAT_RAW8;
-        meta.size_bytes     = (img_height * img_width);
-        meta.stride         = (img_width);
+        if (color){
+            meta.format         = IMAGE_FORMAT_RGB;
+            meta.size_bytes     = (img_height * img_width * 3);
+            meta.stride         = (img_width * 3);
+        }
+        else {
+            meta.format         = IMAGE_FORMAT_RAW8;
+            meta.size_bytes     = (img_height * img_width);
+            meta.stride         = (img_width);
+        }
 
-        if (input_img.data != NULL){
-                pipe_server_write_camera_frame(TFLITE_CH, meta, (char*)input_img.data);
+        if (output_img.data != NULL){
+                pipe_server_write_camera_frame(TFLITE_CH, meta, (char*)output_img.data);
         }
         queue_process_idx = ((queue_process_idx + 1) % QUEUE_SIZE);
     }
@@ -449,8 +474,10 @@ void TFliteMobileNet(void* data)
         delete tflite_settings;
     }
 }
+
 } //namespace
 } //namespace
+
 // -----------------------------------------------------------------------------------------------------------------------------
 // This thread runs the mobilenet model
 // -----------------------------------------------------------------------------------------------------------------------------
