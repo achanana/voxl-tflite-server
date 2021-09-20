@@ -48,17 +48,17 @@ add_executable(${PROJECT_NAME} ${all_src_files})
 
 include_directories(
   /usr/include/opencv4/
-  /usr/include/tensorflow-2-2-x/
-  /usr/include/tensorflow-2-2-x/tensorflow
-  /usr/include/tensorflow-2-2-x/tensorflow/lite/tools/make/downloads/absl/memory/
-  /usr/include/tensorflow-2-2-x/tensorflow/lite/delegates/nnapi/
-  /usr/include/tensorflow-2-2-x/tensorflow/lite/examples/label_image/
-  /usr/include/tensorflow-2-2-x/tensorflow/lite/
-  /usr/include/tensorflow-2-2-x/tensorflow/lite/tools/evaluation/
-  /usr/include/tensorflow-2-2-x/tensorflow/lite/tools/make/downloads/flatbuffers/include/
-  /usr/include/tensorflow-2-2-x/tensorflow/lite/tools/make/downloads/absl
-  /usr/include/tensorflow-2-2-x/tensorflow/lite/tools/make/downloads/eigen/
-  /usr/include/tensorflow-2-2-x/tensorflow/cc/framework/
+  /usr/include/tensorflow-2-2-3/
+  /usr/include/tensorflow-2-2-3/tensorflow
+  /usr/include/tensorflow-2-2-3/tensorflow/lite/tools/make/downloads/absl/memory/
+  /usr/include/tensorflow-2-2-3/tensorflow/lite/delegates/nnapi/
+  /usr/include/tensorflow-2-2-3/tensorflow/lite/examples/label_image/
+  /usr/include/tensorflow-2-2-3/tensorflow/lite/
+  /usr/include/tensorflow-2-2-3/tensorflow/lite/tools/evaluation/
+  /usr/include/tensorflow-2-2-3/tensorflow/lite/tools/make/downloads/flatbuffers/include/
+  /usr/include/tensorflow-2-2-3/tensorflow/lite/tools/make/downloads/absl
+  /usr/include/tensorflow-2-2-3/tensorflow/lite/tools/make/downloads/eigen/
+  /usr/include/tensorflow-2-2-3/tensorflow/cc/framework/
 )
 
 link_directories(/usr/lib64/)
@@ -97,6 +97,7 @@ target_link_libraries(${PROJECT_NAME}
   CB
   EGL_adreno
   GLESv2_adreno
+  rt
 )
 
 # Mark executables and/or libraries for installation
