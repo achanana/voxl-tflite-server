@@ -87,7 +87,7 @@ static inline int config_file_read(void)
 	// actually parse values
 	json_fetch_int_with_default(parent, "skip_n_frames", &skip_n_frames, 5);
     json_fetch_string_with_default(parent, "model", model, buf_len, "/usr/bin/dnn/ssdlite_mobilenet_v2_coco.tflite");
-	json_fetch_string_with_default(parent, "input_pipe", input_pipe, buf_len, "/run/mpa/hires_preview/");
+	json_fetch_string_with_default(parent, "input_pipe", input_pipe, buf_len, "/run/mpa/hires/");
 
 	if(json_get_parse_error_flag()){
 		fprintf(stderr, "failed to parse config file %s\n", CONFIG_FILE);
