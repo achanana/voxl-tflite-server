@@ -220,10 +220,6 @@ void TFliteMobileNet(void* data)
     float total_resize_time, total_tensor_time, total_model_time;
     tflite_settings = new tflite::label_image::Settings;
 
-    if (!strcmp(mobilenet_data->input_pipe, "/run/mpa/hires_preview/")){
-        color = true;
-    }
-
     tflite_settings->model_name                   = mobilenet_data->model_file;
     tflite_settings->labels_file_name             = mobilenet_data->labels_file;
     tflite_settings->gl_backend                   = 1;
@@ -319,6 +315,14 @@ void TFliteMobileNet(void* data)
         // Coming here means we have a frame to run through the DNN model
         num_frames++;
         TFLiteMessage* new_frame = &mobilenet_data->camera_queue->queue[queue_process_idx];
+
+        if (new_frame->metadata.format == IMAGE_FORMAT_NV12 || new_frame->metadata.format == IMAGE_FORMAT_NV21){
+            color = true;
+        }
+        else if (new_frame->metadata.format != IMAGE_FORMAT_RAW8){
+            fprintf(stderr, "Unexpected image format %d received! Exiting now.\n", new_frame->metadata.format);
+            main_running = 0;
+        }
         if (mobilenet_data->en_debug){
             fprintf(stderr, "\n------Popping index %d frame %d ...... Queue size: %d\n",
                 queue_process_idx, new_frame->metadata.frame_id,
