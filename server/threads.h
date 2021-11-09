@@ -43,7 +43,7 @@
 #define MAX_IMAGE_SIZE  12441600  // 4k YUV image size
 #define QUEUE_SIZE      256       // max messages to be stored in queue
 #define TFLITE_CH       0         // output MPA channel
-
+#define TFLITE_DATA_CH  1
 ////////////////////////////////////////////////////////////////////////////////
 // TFlite message data
 ////////////////////////////////////////////////////////////////////////////////

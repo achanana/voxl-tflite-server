@@ -55,6 +55,29 @@
 #include "utils.h"
 
 #define MPA_TFLITE_PATH (MODAL_PIPE_DEFAULT_BASE_DIR "tflite/")
+#define MPA_TFLITE_DATA_PATH (MODAL_PIPE_DEFAULT_BASE_DIR "tflite_data/")
+
+////////////////////////////////////////////////////////////////////////////////
+// TFLITE DETECTION DATA FORMATS
+// per frame, will send out one detections_array packet to /run/mpa/tflite_data
+// can be filled with up to 64 detections per
+////////////////////////////////////////////////////////////////////////////////
+typedef struct object_detection_msg {
+    int64_t timestamp_ns;
+    uint32_t class_id;
+    char class_name[64];
+    float class_confidence;
+    float detection_confidence;
+    float x_min;
+    float y_min;
+    float x_max;
+    float y_max;
+} __attribute__((packed)) object_detection_msg;
+
+typedef struct detections_array {
+    int32_t num_detections;
+    object_detection_msg detections[64];
+} __attribute__((packed)) detections_array;
 
 namespace tflite
 {
@@ -213,6 +236,8 @@ void TFliteMobileNet(void* data)
     TFliteThreadData* mobilenet_data                    = (TFliteThreadData*)data;
     pipe_info_t tflite_pipe                             = {"tflite", MPA_TFLITE_PATH, "camera_image_metadata_t", PROCESS_NAME, 16*1024*1024, 0};
     pipe_server_create(TFLITE_CH, tflite_pipe, 0);
+    pipe_info_t data_pipe                               = {"tflite_data", MPA_TFLITE_DATA_PATH, "detections", PROCESS_NAME, 16*1024, 0};
+    pipe_server_create(TFLITE_DATA_CH, data_pipe, 0);
     cv::Mat input_img, resized_img, output_img;
     static bool color = false;
     camera_image_metadata_t meta;
@@ -315,6 +340,8 @@ void TFliteMobileNet(void* data)
         // Coming here means we have a frame to run through the DNN model
         num_frames++;
         TFLiteMessage* new_frame = &mobilenet_data->camera_queue->queue[queue_process_idx];
+        detections_array detection_output;
+        detection_output.num_detections = 0;
 
         if (new_frame->metadata.format == IMAGE_FORMAT_NV12 || new_frame->metadata.format == IMAGE_FORMAT_NV21){
             color = true;
@@ -446,6 +473,18 @@ void TFliteMobileNet(void* data)
 
                 cv::rectangle(output_img, rect, cv::Scalar(0), 7);
                 cv::putText(output_img, labels[detected_classes[i]], pt, cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0), 2);
+                object_detection_msg curr_detection;
+                curr_detection.timestamp_ns = rc_nanos_monotonic_time();
+                curr_detection.class_id = detected_classes[i];
+                strcpy(curr_detection.class_name, labels[detected_classes[i]].c_str());
+                curr_detection.class_confidence = score;
+                curr_detection.detection_confidence = -1; // UNKNOWN for ssd model architecture
+                curr_detection.x_min = left;
+                curr_detection.y_min = top;
+                curr_detection.x_max = right;
+                curr_detection.y_max = bottom;
+
+                detection_output.detections[detection_output.num_detections++] = curr_detection;
             }
         }
         if (color){
@@ -460,7 +499,11 @@ void TFliteMobileNet(void* data)
         }
 
         if (output_img.data != NULL){
-                pipe_server_write_camera_frame(TFLITE_CH, meta, (char*)output_img.data);
+            pipe_server_write_camera_frame(TFLITE_CH, meta, (char*)output_img.data);
+        }
+        if (detection_output.num_detections > 0){
+            int sz_bytes = (detection_output.num_detections * sizeof(object_detection_msg)) + sizeof(int32_t);
+            pipe_server_write(TFLITE_DATA_CH, (char*)&detection_output, sz_bytes);
         }
         queue_process_idx = ((queue_process_idx + 1) % QUEUE_SIZE);
     }
