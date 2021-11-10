@@ -42,6 +42,79 @@ int mcv_resize_image(const uint8_t* input, uint8_t* output, undistort_map_t* map
 	return 0;
 }
 
+// AVG TODOms min TODOms for vga image on VOXL1 fastest core
+// expects rgb_input as contiguous memory chunk 8bits-R|8bits-G|8bits-B ...
+int mcv_resize_8uc3_image(const uint8_t* rgb_input, uint8_t* output, undistort_map_t* map)
+{
+	// shortcut variables to make code cleaner
+	int  height = map->h_out;
+	int   width = map->w_out;
+	int n_pix = width*height;
+	bilinear_lookup_t* L = map->L;
+
+	// go through every pixel in output image
+	int out_pix = 0;
+	for(int pix=0; pix<n_pix; pix++){
+		// check for invalid (blank) pixels
+		if(L[pix].I[0]<0){
+			output[out_pix++] = 0;
+			output[out_pix++] = 0;
+			output[out_pix++] = 0;
+			continue;
+		}
+
+		// get indices from index lookup I - same for all 3 components of pixel
+		uint16_t x1 = L[pix].I[0];
+		uint16_t y1 = L[pix].I[1];
+
+		/**
+		 * rgb input is arranged as: 8bits-R|8bits-G|8bits-B
+		 * these indices will be relative to a grayscale image
+		 * conversion is as follows:
+		 * mapped_index * 3 = r (start of pixel), + 1 = g, + 2 = b
+		 *
+		 * don't worry about all the index algebra, the compiler optimizes this
+		 */
+
+		/// R ///
+		uint16_t p0 = rgb_input[(map->w_in*y1 + x1) * 3];
+		uint16_t p1 = rgb_input[(map->w_in*y1 + x1 + 1) * 3 ];
+		uint16_t p2 = rgb_input[(map->w_in*(y1+1) + x1) * 3];
+		uint16_t p3 = rgb_input[(map->w_in*(y1+1) + x1) * 3];
+
+		/// G ///
+		uint16_t p4 = rgb_input[(map->w_in*y1 + x1) * 3 + 1];
+		uint16_t p5 = rgb_input[(map->w_in*y1 + x1 + 1) * 3 + 1];
+		uint16_t p6 = rgb_input[(map->w_in*(y1+1) + x1) * 3 + 1];
+		uint16_t p7 = rgb_input[(map->w_in*(y1+1) + x1) * 3 + 1];
+
+		/// B ///
+		uint16_t p8 = rgb_input[(map->w_in*y1 + x1) * 3 + 2];
+		uint16_t p9 = rgb_input[(map->w_in*y1 + x1 + 1) * 3 + 2];
+		uint16_t p10 = rgb_input[(map->w_in*(y1+1) + x1) * 3 + 2];
+		uint16_t p11 = rgb_input[(map->w_in*(y1+1) + x1) * 3 + 2];
+
+		// multiply add each pixel with weighting
+		output[out_pix++] = (	p0*L[pix].F[0] +
+						    	p1*L[pix].F[1] +
+						    	p2*L[pix].F[2] +
+						    	p3*L[pix].F[3]) /256;
+
+		// multiply add each pixel with weighting
+		output[out_pix++] = (	p4*L[pix].F[0] +
+						    	p5*L[pix].F[1] +
+						    	p6*L[pix].F[2] +
+						    	p7*L[pix].F[3]) /256;
+
+		// multiply add each pixel with weighting
+		output[out_pix++] = (	p8*L[pix].F[0]  +
+						    	p9*L[pix].F[1]  +
+						    	p10*L[pix].F[2] +
+						    	p11*L[pix].F[3]) /256;
+	}
+	return 0;
+}
+
 int mcv_init_resize_map(int w_in, int h_in, int w_out, int h_out, undistort_map_t* map)
 {
 	map->h_out = h_out;

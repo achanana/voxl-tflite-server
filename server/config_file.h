@@ -48,8 +48,8 @@
  * skip_n_frames - how many frames to skip between processed frames. For 30hz\n\
  *                   input frame rate, we recommend skipping 5 frame resulting\n\
  *                   in 5hz model output.\n\
- * model         - which model to use. Currently only support mobilenet for\n\
- *                    object detection.\n\
+ * model         - which model to use. Currently support mobilenet for\n\
+ *                   object detection or midas for monocular depth\n\
  * input_pipe    - which camera to use (tracking or hires).\n\
  */\n"
 

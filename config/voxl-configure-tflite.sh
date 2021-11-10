@@ -208,8 +208,8 @@ disable )
 done
 
 echo ""
-echo -e "do you want to run the tflite server with:\n (1) Mobilenet + Hires camera\n (2) Mobilenet + Tracking camera\n"
-select opt in "1" "2"; do
+echo -e "do you want to run the tflite server with:\n (1) Mobilenet + Hires camera\n (2) Mobilenet + Tracking camera\n (3) Midas + Hires camera\n"
+select opt in "1" "2" "3"; do
 case $opt in
 1 )
 	set_param_string model "/usr/bin/dnn/ssdlite_mobilenet_v2_coco.tflite"
@@ -218,6 +218,10 @@ case $opt in
 2 )
 	set_param_string model "/usr/bin/dnn/ssdlite_mobilenet_v2_coco.tflite"
     set_param_string_last input_pipe "/run/mpa/tracking/"
+	break;;
+3 )
+	set_param_string model "/usr/bin/dnn/midas_v2.tflite"
+    set_param_string_last input_pipe "/run/mpa/hires/"
 	break;;
 *)
 	echo "invalid option"

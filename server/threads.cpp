@@ -42,8 +42,10 @@
 #include "threads.h"
 
 
-// model thread
+// model threads
 extern void* ThreadMobileNet(void* data);
+extern void* ThreadMidas(void* data);
+
 
 // forward declaration
 static void _cam_helper_cb(__attribute__((unused))int ch,
@@ -74,8 +76,13 @@ TFliteModelExecute::TFliteModelExecute(struct TFliteThreadData* init_data)
     if (!strcmp(model_thread_data.model_file, "/usr/bin/dnn/ssdlite_mobilenet_v2_coco.tflite")){
         pthread_create(&(model_thread_data.thread), &thread_attributes, ThreadMobileNet, &model_thread_data);
     }
+    else if (!strcmp(model_thread_data.model_file, "/usr/bin/dnn/midas_v2.tflite")){
+        fprintf(stderr,"------VOXL TFLite Server: WARNING\nSelected Midas V2 model which requires hires input.\nOverriding input pipe to hires\n\n");
+        model_thread_data.input_pipe = (char*)"/run/mpa/hires/";
+        pthread_create(&(model_thread_data.thread), &thread_attributes, ThreadMidas, &model_thread_data);
+    }
     else{
-        fprintf(stderr, "------voxl-mpa-tflite: FATAL: Unsupported model provided!!\n");
+        fprintf(stderr, "------VOXL TFLite Server: FATAL: Unsupported model provided!! %s\n", model_thread_data.model_file);
         exit(-1);
     }
     pipe_client_set_camera_helper_cb(0, _cam_helper_cb, this);
