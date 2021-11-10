@@ -363,7 +363,7 @@ void TFliteMobileNet(void* data)
 
         // bilinear resize struct + setup
         static undistort_map_t map;
-        if (queue_process_idx == 0){
+        if (num_frames == 1){
             mcv_init_resize_map(img_width, img_height, model_img_width, model_img_height, &map);
         }
 
@@ -651,7 +651,7 @@ void TFliteMidas(void* data)
 
         // bilinear resize struct + setup
         static undistort_map_t map;
-        if (queue_process_idx == 0){
+        if (num_frames == 1){
             mcv_init_resize_map(img_width, img_height, model_img_width, model_img_height, &map);
         }
 
