@@ -30,6 +30,7 @@ int mcv_init_resize_map(int w_in, int h_in, int w_out, int h_out, undistort_map_
 // resizes the image using the lookup table created by mcv_init_resize_map
 int mcv_resize_image(const uint8_t* input, uint8_t* output, undistort_map_t* map);
 
+int mcv_resize_8uc3_image(const uint8_t* rgb_input, uint8_t* output, undistort_map_t* map);
 
 #ifdef __cplusplus
 }

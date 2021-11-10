@@ -55,6 +55,29 @@
 #include "utils.h"
 
 #define MPA_TFLITE_PATH (MODAL_PIPE_DEFAULT_BASE_DIR "tflite/")
+#define MPA_TFLITE_DATA_PATH (MODAL_PIPE_DEFAULT_BASE_DIR "tflite_data/")
+
+////////////////////////////////////////////////////////////////////////////////
+// TFLITE DETECTION DATA FORMATS
+// per frame, will send out one detections_array packet to /run/mpa/tflite_data
+// can be filled with up to 64 detections per
+////////////////////////////////////////////////////////////////////////////////
+typedef struct object_detection_msg {
+    int64_t timestamp_ns;
+    uint32_t class_id;
+    char class_name[64];
+    float class_confidence;
+    float detection_confidence;
+    float x_min;
+    float y_min;
+    float x_max;
+    float y_max;
+} __attribute__((packed)) object_detection_msg;
+
+typedef struct detections_array {
+    int32_t num_detections;
+    object_detection_msg detections[64];
+} __attribute__((packed)) detections_array;
 
 namespace tflite
 {
@@ -213,6 +236,8 @@ void TFliteMobileNet(void* data)
     TFliteThreadData* mobilenet_data                    = (TFliteThreadData*)data;
     pipe_info_t tflite_pipe                             = {"tflite", MPA_TFLITE_PATH, "camera_image_metadata_t", PROCESS_NAME, 16*1024*1024, 0};
     pipe_server_create(TFLITE_CH, tflite_pipe, 0);
+    pipe_info_t data_pipe                               = {"tflite_data", MPA_TFLITE_DATA_PATH, "detections", PROCESS_NAME, 16*1024, 0};
+    pipe_server_create(TFLITE_DATA_CH, data_pipe, 0);
     cv::Mat input_img, resized_img, output_img;
     static bool color = false;
     camera_image_metadata_t meta;
@@ -315,6 +340,8 @@ void TFliteMobileNet(void* data)
         // Coming here means we have a frame to run through the DNN model
         num_frames++;
         TFLiteMessage* new_frame = &mobilenet_data->camera_queue->queue[queue_process_idx];
+        detections_array detection_output;
+        detection_output.num_detections = 0;
 
         if (new_frame->metadata.format == IMAGE_FORMAT_NV12 || new_frame->metadata.format == IMAGE_FORMAT_NV21){
             color = true;
@@ -335,8 +362,10 @@ void TFliteMobileNet(void* data)
         int img_channels = 3;
 
         // bilinear resize struct + setup
-        undistort_map_t map;
-        mcv_init_resize_map(img_width, img_height, model_img_width, model_img_height, &map);
+        static undistort_map_t map;
+        if (num_frames == 1){
+            mcv_init_resize_map(img_width, img_height, model_img_width, model_img_height, &map);
+        }
 
         input_img = cv::Mat(img_height, img_width, CV_8UC1, (uchar*)new_frame->image_pixels);
 
@@ -446,6 +475,18 @@ void TFliteMobileNet(void* data)
 
                 cv::rectangle(output_img, rect, cv::Scalar(0), 7);
                 cv::putText(output_img, labels[detected_classes[i]], pt, cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0), 2);
+                object_detection_msg curr_detection;
+                curr_detection.timestamp_ns = rc_nanos_monotonic_time();
+                curr_detection.class_id = detected_classes[i];
+                strcpy(curr_detection.class_name, labels[detected_classes[i]].c_str());
+                curr_detection.class_confidence = score;
+                curr_detection.detection_confidence = -1; // UNKNOWN for ssd model architecture
+                curr_detection.x_min = left;
+                curr_detection.y_min = top;
+                curr_detection.x_max = right;
+                curr_detection.y_max = bottom;
+
+                detection_output.detections[detection_output.num_detections++] = curr_detection;
             }
         }
         if (color){
@@ -460,12 +501,250 @@ void TFliteMobileNet(void* data)
         }
 
         if (output_img.data != NULL){
-                pipe_server_write_camera_frame(TFLITE_CH, meta, (char*)output_img.data);
+            pipe_server_write_camera_frame(TFLITE_CH, meta, (char*)output_img.data);
+        }
+        if (detection_output.num_detections > 0){
+            int sz_bytes = (detection_output.num_detections * sizeof(object_detection_msg)) + sizeof(int32_t);
+            pipe_server_write(TFLITE_DATA_CH, (char*)&detection_output, sz_bytes);
         }
         queue_process_idx = ((queue_process_idx + 1) % QUEUE_SIZE);
     }
 
     if (mobilenet_data->en_timing){
+        printf("\n------------------------------------------\n");
+        printf("TIMING STATS (on %d processed frames)\n", num_frames);
+        printf("------------------------------------------\n");
+        printf("Image resize time   -> Total: %6.2fms, Average: %6.2fms\n", (double)(total_resize_time/1000000), (double)((total_resize_time/(1000000* num_frames))));
+        printf("Tensor resize time  -> Total: %6.2fms, Average: %6.2fms\n", (double)(total_tensor_time/1000000), (double)((total_tensor_time/(1000000* num_frames))));
+        printf("Model GPU execution -> Total: %6.2fms, Average: %6.2fms\n", (double)(total_model_time/1000000), (double)((total_model_time/(1000000* num_frames))));
+    }
+
+    if (tflite_settings != NULL){
+        delete tflite_settings;
+    }
+}
+
+void TFliteMidas(void* data)
+{
+    int model_img_height;
+    int model_img_width;
+    int model_img_channels;
+    std::unique_ptr<tflite::FlatBufferModel>            model;
+    std::unique_ptr<tflite::Interpreter>                interpreter;
+    tflite::ops::builtin::BuiltinOpResolver             resolver;
+    tflite::label_image::Settings* tflite_settings      = NULL;
+    TFliteThreadData* midas_data                        = (TFliteThreadData*)data;
+    pipe_info_t tflite_pipe                             = {"tflite", MPA_TFLITE_PATH, "camera_image_metadata_t", PROCESS_NAME, 16*1024*1024, 0};
+    pipe_server_create(TFLITE_CH, tflite_pipe, 0);
+    cv::Mat input_img, resized_img, output_img;
+    camera_image_metadata_t meta;
+    uint64_t start_time, end_time;
+    float total_resize_time, total_tensor_time, total_model_time;
+    tflite_settings = new tflite::label_image::Settings;
+
+    tflite_settings->model_name                   = midas_data->model_file;
+    tflite_settings->labels_file_name             = midas_data->labels_file;
+    tflite_settings->gl_backend                   = 1;
+    tflite_settings->number_of_threads            = 4;
+    tflite_settings->allow_fp16                   = 1;
+    tflite_settings->input_mean                   = 127;
+    tflite_settings->loop_count                   = 1;
+
+    if (!tflite_settings->model_name.c_str()){
+        fprintf(stderr, "FATAL: no model file name\n");
+        exit(-1);
+    }
+
+    model = tflite::FlatBufferModel::BuildFromFile(tflite_settings->model_name.c_str());
+
+    if (!model){
+        fprintf(stderr, "FATAL: Failed to mmap model %s\n", tflite_settings->model_name.c_str());
+        exit(-1);
+    }
+
+    tflite_settings->model = model.get();
+    if (midas_data->en_debug) printf("Loaded model %s\n", tflite_settings->model_name.c_str());
+    model->error_reporter();
+    if (midas_data->en_debug) printf("Resolved reporter\n");
+
+    tflite::InterpreterBuilder(*model, resolver)(&interpreter);
+
+    if (!interpreter){
+        fprintf(stderr, "Failed to construct interpreter\n");
+        exit(-1);
+    }
+
+    interpreter->UseNNAPI(tflite_settings->old_accel);
+    interpreter->SetAllowFp16PrecisionForFp32(tflite_settings->allow_fp16);
+
+    if (tflite_settings->number_of_threads != -1){
+        interpreter->SetNumThreads(tflite_settings->number_of_threads);
+    }
+
+    TfLiteDelegatePtrMap delegates_ = GetDelegates(tflite_settings);
+
+    for (const auto& delegate : delegates_){
+        if (interpreter->ModifyGraphWithDelegate(delegate.second.get()) != kTfLiteOk){
+            printf("Failed to apply delegate\n");
+            break;
+        }
+        else{
+             if (midas_data->en_debug) printf("Applied delegate \n");
+            break;
+        }
+    }
+
+    if (interpreter->AllocateTensors() != kTfLiteOk){
+        fprintf(stderr, "Failed to allocate tensors!\n");
+        exit(-1);
+    }
+
+    TfLiteIntArray* dims = interpreter->tensor(interpreter->inputs()[0])->dims;
+
+    model_img_height   = dims->data[1];
+    model_img_width    = dims->data[2];
+    model_img_channels = dims->data[3];
+
+    // Set thread priority
+    pid_t tid = syscall(SYS_gettid);
+    int which = PRIO_PROCESS;
+    int nice  = -15;
+    setpriority(which, tid, nice);
+
+    // Inform the camera frames receiver that tflite processing is ready to receive frames and start processing
+    midas_data->thread_ready = true;
+    fprintf(stderr, "\n------Setting TFLiteThread to ready!! W: %d H: %d C:%d",
+            model_img_width, model_img_height, model_img_channels);
+
+    int queue_process_idx          = 0;
+    total_tensor_time              = 0;
+    total_resize_time              = 0;
+    total_model_time               = 0;
+    int num_frames                 = 0;
+    // uint8_t resize_output[model_img_width*model_img_height*3] = {0};
+
+    while (midas_data->stop == false){
+        if (queue_process_idx == midas_data->camera_queue->insert_idx){
+            std::unique_lock<std::mutex> lock(midas_data->cond_mutex);
+            midas_data->cond_var.wait(lock);
+            continue;
+        }
+        if (((!midas_data->en_debug) && (!midas_data->en_timing))){
+            if (pipe_server_get_num_clients(TFLITE_CH) == 0 ){
+                continue;
+            }
+        }
+        // Coming here means we have a frame to run through the DNN model
+        num_frames++;
+        TFLiteMessage* new_frame = &midas_data->camera_queue->queue[queue_process_idx];
+
+        if (midas_data->en_debug){
+            fprintf(stderr, "\n------Popping index %d frame %d ...... Queue size: %d\n",
+                queue_process_idx, new_frame->metadata.frame_id,
+                abs(midas_data->camera_queue->insert_idx - queue_process_idx));
+        }
+
+        meta = new_frame->metadata;
+        int img_width    = meta.width;
+        int img_height   = meta.height;
+        int img_channels = 3;
+
+        // bilinear resize struct + setup
+        static undistort_map_t map;
+        if (num_frames == 1){
+            mcv_init_resize_map(img_width, img_height, model_img_width, model_img_height, &map);
+        }
+
+        cv::Mat yuv(img_height + img_height/2, img_width, CV_8UC1, (uchar*)new_frame->image_pixels);
+        cv::cvtColor(yuv, output_img, CV_YUV2RGB_NV21);
+
+        start_time = rc_nanos_monotonic_time();
+        fprintf(stderr, "about to resize\n");
+        uint8_t resize_output[model_img_width*model_img_height*3] = {0};
+
+        mcv_resize_8uc3_image((uint8_t*)output_img.data, resize_output, &map);
+        end_time = rc_nanos_monotonic_time();
+        if (midas_data->en_timing){
+            printf("\nImage resize time:          %6.2fms\n", ((double)(end_time-start_time))/1000000.0);
+            total_resize_time += (end_time-start_time);
+        }
+
+        cv::Mat resized(model_img_height, model_img_width, CV_8UC3, (uchar*)resize_output);
+
+        uint8_t* pImageData = (uint8_t*)resized.data;
+
+        const std::vector<int> inputs     = interpreter->inputs();
+        const std::vector<int> outputs    = interpreter->outputs();
+
+        // Get input dimension from the input tensor metadata assuming one input only
+        int input = interpreter->inputs()[0];
+
+        switch (interpreter->tensor(input)->type){
+            case kTfLiteFloat32: {
+                tflite_settings->input_floating = true;
+                start_time = rc_nanos_monotonic_time();
+                float* dst = TensorData<float>(interpreter->tensor(input), 0);
+                const int row_elems = model_img_width * model_img_channels;
+                for (int row = 0; row < model_img_height; row++) {
+                    const uchar* row_ptr = resized.ptr(row);
+                    for (int i = 0; i < row_elems; i++) {
+                        dst[i] = (row_ptr[i] - 127.0f) / 127.0f;
+                    }
+                    dst += row_elems;
+                }
+                end_time = rc_nanos_monotonic_time();
+                if (midas_data->en_timing){
+                    printf("Tflite tensor resize time:  %6.2fms\n", ((double)(end_time-start_time))/1000000.0);
+                    total_tensor_time += (end_time-start_time);
+                }
+            }
+                break;
+
+            case kTfLiteUInt8:
+                resize<uint8_t>(interpreter->typed_tensor<uint8_t>(input), pImageData,
+                            model_img_height, model_img_width, img_channels, model_img_height,
+                            model_img_width, model_img_channels, tflite_settings);
+                break;
+
+            default:
+                exit(-1);
+        }
+
+        start_time = rc_nanos_monotonic_time();
+        for (int i = 0; i < tflite_settings->loop_count; i++){
+            if (interpreter->Invoke() != kTfLiteOk){
+                fprintf(stderr, "Failed to invoke tflite!\n");
+            }
+        }
+        end_time = rc_nanos_monotonic_time();
+        if (midas_data->en_timing){
+            printf("Model execution time:       %6.2fms\n", ((double)(end_time-start_time))/1000000.0);
+            total_model_time += (end_time-start_time);
+        }
+
+        TfLiteTensor* output_locations    = interpreter->tensor(interpreter->outputs()[0]);
+        float* depth  = TensorData<float>(output_locations, 0);
+        cv::Mat depthImage(model_img_height, model_img_width, CV_32FC1, depth);
+        double min_val, max_val;
+        cv::Mat depthmap_visual;
+        cv::minMaxLoc(depthImage, &min_val, &max_val);
+        depthmap_visual = 255 * (depthImage - min_val) / (max_val - min_val); // * 255 for "scaled" disparity, 15 for midas default
+        depthmap_visual.convertTo(depthmap_visual, CV_8U);
+        cv::applyColorMap(depthmap_visual, output_img, 4); //COLORMAP_JET
+
+        meta.format         = IMAGE_FORMAT_RGB;
+        meta.size_bytes     = (output_img.rows * output_img.cols * 3);
+        meta.stride         = (output_img.cols * 3);
+        meta.width          = output_img.cols;
+        meta.height         = output_img.rows;
+
+        if (output_img.data != NULL){
+                pipe_server_write_camera_frame(TFLITE_CH, meta, (char*)output_img.data);
+        }
+        queue_process_idx = ((queue_process_idx + 1) % QUEUE_SIZE);
+    }
+
+    if (midas_data->en_timing){
         printf("\n------------------------------------------\n");
         printf("TIMING STATS (on %d processed frames)\n", num_frames);
         printf("------------------------------------------\n");
@@ -488,5 +767,11 @@ void TFliteMobileNet(void* data)
 void* ThreadMobileNet(void* data)
 {
     tflite::label_image::TFliteMobileNet(data);
+    return NULL;
+}
+
+void* ThreadMidas(void* data)
+{
+    tflite::label_image::TFliteMidas(data);
     return NULL;
 }
