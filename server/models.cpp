@@ -475,10 +475,16 @@ void TFliteMobileNet(void* data)
 
                 cv::rectangle(output_img, rect, cv::Scalar(0), 7);
                 cv::putText(output_img, labels[detected_classes[i]], pt, cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0), 2);
+
                 object_detection_msg curr_detection;
                 curr_detection.timestamp_ns = rc_nanos_monotonic_time();
                 curr_detection.class_id = detected_classes[i];
-                strcpy(curr_detection.class_name, labels[detected_classes[i]].c_str());
+
+                std::string class_holder = labels[detected_classes[i]].substr(labels[detected_classes[i]].find(" "));
+                class_holder.erase(remove_if(class_holder.begin(), class_holder.end(), isspace), class_holder.end());
+
+                strcpy(curr_detection.class_name, class_holder.c_str());
+
                 curr_detection.class_confidence = score;
                 curr_detection.detection_confidence = -1; // UNKNOWN for ssd model architecture
                 curr_detection.x_min = left;
