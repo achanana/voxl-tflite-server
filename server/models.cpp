@@ -236,7 +236,7 @@ void TFliteMobileNet(void* data)
     TFliteThreadData* mobilenet_data                    = (TFliteThreadData*)data;
     pipe_info_t tflite_pipe                             = {"tflite", MPA_TFLITE_PATH, "camera_image_metadata_t", PROCESS_NAME, 16*1024*1024, 0};
     pipe_server_create(TFLITE_CH, tflite_pipe, 0);
-    pipe_info_t data_pipe                               = {"tflite_data", MPA_TFLITE_DATA_PATH, "detections", PROCESS_NAME, 16*1024, 0};
+    pipe_info_t data_pipe                               = {"tflite_data", MPA_TFLITE_DATA_PATH, "ai_detection_t", PROCESS_NAME, 16*1024, 0};
     pipe_server_create(TFLITE_DATA_CH, data_pipe, 0);
     cv::Mat input_img, resized_img, output_img;
     static bool color = false;
