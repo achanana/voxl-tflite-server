@@ -53,31 +53,10 @@
 #include "bitmap_helpers.h"
 #include "optional_debug_tools.h"
 #include "utils.h"
+#include "ai_detection.h"
 
 #define MPA_TFLITE_PATH (MODAL_PIPE_DEFAULT_BASE_DIR "tflite/")
 #define MPA_TFLITE_DATA_PATH (MODAL_PIPE_DEFAULT_BASE_DIR "tflite_data/")
-
-////////////////////////////////////////////////////////////////////////////////
-// TFLITE DETECTION DATA FORMATS
-// per frame, will send out one detections_array packet to /run/mpa/tflite_data
-// can be filled with up to 64 detections per
-////////////////////////////////////////////////////////////////////////////////
-typedef struct object_detection_msg {
-    int64_t timestamp_ns;
-    uint32_t class_id;
-    char class_name[64];
-    float class_confidence;
-    float detection_confidence;
-    float x_min;
-    float y_min;
-    float x_max;
-    float y_max;
-} __attribute__((packed)) object_detection_msg;
-
-typedef struct detections_array {
-    int32_t num_detections;
-    object_detection_msg detections[64];
-} __attribute__((packed)) detections_array;
 
 namespace tflite
 {
@@ -314,6 +293,11 @@ void TFliteMobileNet(void* data)
     int nice  = -15;
     setpriority(which, tid, nice);
 
+    // store cam name
+    std::string full_path(mobilenet_data->input_pipe);
+    std::string cam_name(full_path.substr(full_path.rfind("/", full_path.size() - 2) + 1));
+    cam_name.pop_back();
+
     // Inform the camera frames receiver that tflite processing is ready to receive frames and start processing
     mobilenet_data->thread_ready = true;
     fprintf(stderr, "\n------Setting TFLiteThread to ready!! W: %d H: %d C:%d",
@@ -340,8 +324,6 @@ void TFliteMobileNet(void* data)
         // Coming here means we have a frame to run through the DNN model
         num_frames++;
         TFLiteMessage* new_frame = &mobilenet_data->camera_queue->queue[queue_process_idx];
-        detections_array detection_output;
-        detection_output.num_detections = 0;
 
         if (new_frame->metadata.format == IMAGE_FORMAT_NV12 || new_frame->metadata.format == IMAGE_FORMAT_NV21){
             color = true;
@@ -476,15 +458,17 @@ void TFliteMobileNet(void* data)
                 cv::rectangle(output_img, rect, cv::Scalar(0), 7);
                 cv::putText(output_img, labels[detected_classes[i]], pt, cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0), 2);
 
-                object_detection_msg curr_detection;
+                ai_detection_t curr_detection;
+                curr_detection.magic_number = AI_DETECTION_MAGIC_NUMBER;
                 curr_detection.timestamp_ns = rc_nanos_monotonic_time();
                 curr_detection.class_id = detected_classes[i];
+                curr_detection.frame_id = num_frames;
 
                 std::string class_holder = labels[detected_classes[i]].substr(labels[detected_classes[i]].find(" "));
                 class_holder.erase(remove_if(class_holder.begin(), class_holder.end(), isspace), class_holder.end());
-
                 strcpy(curr_detection.class_name, class_holder.c_str());
 
+                strcpy(curr_detection.cam, cam_name.c_str());
                 curr_detection.class_confidence = score;
                 curr_detection.detection_confidence = -1; // UNKNOWN for ssd model architecture
                 curr_detection.x_min = left;
@@ -492,7 +476,7 @@ void TFliteMobileNet(void* data)
                 curr_detection.x_max = right;
                 curr_detection.y_max = bottom;
 
-                detection_output.detections[detection_output.num_detections++] = curr_detection;
+                pipe_server_write(TFLITE_DATA_CH, (char*)&curr_detection, sizeof(ai_detection_t));
             }
         }
         if (color){
@@ -508,10 +492,6 @@ void TFliteMobileNet(void* data)
 
         if (output_img.data != NULL){
             pipe_server_write_camera_frame(TFLITE_CH, meta, (char*)output_img.data);
-        }
-        if (detection_output.num_detections > 0){
-            int sz_bytes = (detection_output.num_detections * sizeof(object_detection_msg)) + sizeof(int32_t);
-            pipe_server_write(TFLITE_DATA_CH, (char*)&detection_output, sz_bytes);
         }
         queue_process_idx = ((queue_process_idx + 1) % QUEUE_SIZE);
     }
@@ -776,6 +756,9 @@ void* ThreadMobileNet(void* data)
     return NULL;
 }
 
+// -----------------------------------------------------------------------------------------------------------------------------
+// This thread runs the midas model
+// -----------------------------------------------------------------------------------------------------------------------------
 void* ThreadMidas(void* data)
 {
     tflite::label_image::TFliteMidas(data);
