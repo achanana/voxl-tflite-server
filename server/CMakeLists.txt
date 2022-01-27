@@ -48,17 +48,16 @@ add_executable(${PROJECT_NAME} ${all_src_files})
 
 include_directories(
   /usr/include/opencv4/
-  /usr/include/tensorflow-2-2-3/
-  /usr/include/tensorflow-2-2-3/tensorflow
-  /usr/include/tensorflow-2-2-3/tensorflow/lite/tools/make/downloads/absl/memory/
-  /usr/include/tensorflow-2-2-3/tensorflow/lite/delegates/nnapi/
-  /usr/include/tensorflow-2-2-3/tensorflow/lite/examples/label_image/
-  /usr/include/tensorflow-2-2-3/tensorflow/lite/
-  /usr/include/tensorflow-2-2-3/tensorflow/lite/tools/evaluation/
-  /usr/include/tensorflow-2-2-3/tensorflow/lite/tools/make/downloads/flatbuffers/include/
-  /usr/include/tensorflow-2-2-3/tensorflow/lite/tools/make/downloads/absl
-  /usr/include/tensorflow-2-2-3/tensorflow/lite/tools/make/downloads/eigen/
-  /usr/include/tensorflow-2-2-3/tensorflow/cc/framework/
+  /usr/include/tensorflow/
+  /usr/include/tensorflow/lite/tools/make/downloads/absl/memory/
+  /usr/include/tensorflow/lite/delegates/nnapi/
+  /usr/include/tensorflow/lite/examples/label_image/
+  /usr/include/tensorflow/lite/
+  /usr/include/tensorflow/lite/tools/evaluation/
+  /usr/include/tensorflow/lite/tools/make/downloads/flatbuffers/include/
+  /usr/include/tensorflow/lite/tools/make/downloads/absl
+  /usr/include/tensorflow/lite/tools/make/downloads/eigen/
+  /usr/include/tensorflow/cc/framework/
 )
 
 link_directories(/usr/lib64/)

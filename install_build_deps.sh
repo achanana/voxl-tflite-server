@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # list all your dependencies here
-DEPS="libmodal_pipe libmodal_json opencv voxl-tflite"
+DEPS="libmodal-pipe libmodal-json voxl-opencv voxl-tflite"
 
 
 # variables
