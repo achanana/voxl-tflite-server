@@ -1,24 +1,72 @@
 #!/bin/bash
-# Copyright 2017 The TensorFlow Authors. All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-# ==============================================================================
 
-set -x
-set -e
+## voxl-cross contains the following toolchains
+## first two for 820, last for 865
+TOOLCHAIN32="/opt/cross_toolchain/arm-gnueabi-4.9.toolchain.cmake"
+TOOLCHAIN64="/opt/cross_toolchain/aarch64-gnu-4.9.toolchain.cmake"
+TOOLCHAIN865="/opt/cross_toolchain/aarch64-gnu-8.toolchain.cmake"
 
-mkdir -p build
-cd build
-cmake -DCMAKE_TOOLCHAIN_FILE=/opt/cross_toolchain/aarch64-gnu-4.9.toolchain.cmake -DCMAKE_BUILD_TYPE=RELEASE -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS} -std=c++11 -march=armv8-a" ../server
+# placeholder in case more cmake opts need to be added later
+EXTRA_OPTS=""
 
-make -j 4 TARGET=aarch64 TARGET_TOOLCHAIN_PREFIX=aarch64-linux-gnu-
+# 865 compiler definition, used for 865 specific tflite usage
+BUILD_865="ON"
+
+# mode variable set by arguments
+MODE=""
+
+print_usage(){
+	echo ""
+	echo " Build the current project in one of these modes based on build environment."
+	echo ""
+	echo " Usage:"
+	echo ""
+	echo "  ./build.sh 820"
+	echo "        Build 64-bit binaries for 820"
+	echo ""
+	echo "  ./build.sh 865"
+	echo "        Build 64-bit binaries for 865"
+	echo ""
+	echo "  ./build.sh native"
+	echo "        Build with the native gcc/g++ compilers."
+	echo ""
+	echo ""
+}
+
+
+
+MODE="$1"
+
+case "$MODE" in
+	820)
+		mkdir -p build64
+		cd build64
+        BUILD_865="OFF"
+		cmake -DCMAKE_TOOLCHAIN_FILE=${TOOLCHAIN64} -DCMAKE_BUILD_TYPE=RELEASE -DBUILD_865=${BUILD_865} -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS} -std=c++11 -march=armv8-a -L  /usr/aarch64-linux-gnu-2.23/lib -I  /usr/aarch64-linux-gnu-2.23/include" ${EXTRA_OPTS} ../
+		make -j$(nproc)
+		cd ../
+		;;
+	865)
+		mkdir -p build
+		cd build
+		cmake -DCMAKE_TOOLCHAIN_FILE=${TOOLCHAIN865} -DCMAKE_BUILD_TYPE=RELEASE -DBUILD_865=${BUILD_865} -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS} -std=c++11 -march=armv8-a" ${EXTRA_OPTS} ../
+		make -j$(nproc)
+		cd ../
+		;;
+	native)
+		mkdir -p build
+		cd build
+        BUILD_865="OFF"
+		cmake ${EXTRA_OPTS} ../
+		make -j$(nproc)
+		cd ../
+		;;
+
+	*)
+		print_usage
+		exit 1
+		;;
+esac
+
+
+

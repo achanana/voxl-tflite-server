@@ -38,17 +38,18 @@ extern "C" {
 #endif
 
 #include <stdint.h>
-#include <modal_pipe_common.h>
 
+#define BUF_LEN 64
 #define AI_DETECTION_MAGIC_NUMBER (0x564F584C)
 
+// struct containing all relevant metadata to a tflite object detection
 typedef struct ai_detection_t {
 	uint32_t magic_number;
     int64_t timestamp_ns;
     uint32_t class_id;
     int32_t  frame_id;
-    char class_name[64];
-    char cam[MODAL_PIPE_MAX_DIR_LEN];
+    char class_name[BUF_LEN];
+    char cam[BUF_LEN];
     float class_confidence;
     float detection_confidence;
     float x_min;

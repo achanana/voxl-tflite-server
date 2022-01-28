@@ -1,6 +1,6 @@
 # voxl-tflite-server
 
-Use mobilenet for object detection via tensorflow lite on VOXL.
+Use tensorflow lite on VOXL for object detection and monocular depth.
 
 dependencies:
 * libmodal_pipe
@@ -37,13 +37,13 @@ build.sh          dnn       install_on_voxl.sh     server
 4) Compile inside the docker.
 
 ```bash
-./build.sh
+./build.sh 820
 ```
 
 5) Make an ipk package inside the docker.
 
 ```bash
-./make_package.sh
+./make_package.sh ipk
 Package Name:  voxl-tflite-server
 version Number:  x.x.x
 ar: creating voxl-tflite-server_x.x.x.ipk
@@ -61,7 +61,7 @@ You can now push the ipk package to the VOXL and install with opkg however you l
 Do this OUTSIDE of docker as your docker image probably doesn't have usb permissions for ADB.
 
 ```bash
-~/git/voxl-tflite-server$ ./install_on_voxl.sh
+~/git/voxl-tflite-server$ ./deploy_to_voxl.sh
 pushing voxl-tflite-server_x.x.x.ipk to target
 searching for ADB device
 adb device found

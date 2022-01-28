@@ -1,7 +1,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-#include "undistort.h"
+#include <stdlib.h>
+#include "resize.h"
 
 
 // AVG 1.4ms min 1.20 ms for vga image on VOXL1 fastest core

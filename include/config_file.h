@@ -37,8 +37,7 @@
 
 #include <modal_json.h>
 
-#define buf_len 64
-// remove labels,
+#define CHAR_BUF_SIZE 64
 #define CONFIG_FILE "/etc/modalai/voxl-tflite-server.conf"
 
 #define CONFIG_FILE_HEADER "\
@@ -51,13 +50,16 @@
  * model         - which model to use. Currently support mobilenet for\n\
  *                   object detection or midas for monocular depth\n\
  * input_pipe    - which camera to use (tracking or hires).\n\
+ * delegate		 - optional hardware acceleration: gpu, xnnpack, or nnapi. If\n\
+ * 					 the selection is invalid for the current model/hardware, \n\
+ * 					 will silently fall back to base cpu delegate.\n\
  */\n"
 
 
 static int skip_n_frames;
-static char model[buf_len];
-static char input_pipe[buf_len];
-
+static char model[CHAR_BUF_SIZE];
+static char input_pipe[CHAR_BUF_SIZE];
+static char delegate[CHAR_BUF_SIZE];
 
 
 static inline void config_file_print(void)
@@ -65,11 +67,11 @@ static inline void config_file_print(void)
 	printf("=================================================================\n");
 	printf("skip_n_frames:                    %d\n",    skip_n_frames);
 	printf("=================================================================\n");
-    printf("=================================================================\n");
 	printf("model:                            %s\n",    model);
-	printf("=================================================================\n");
     printf("=================================================================\n");
 	printf("input_pipe:                       %s\n",    input_pipe);
+	printf("=================================================================\n");
+	printf("delegate:                         %s\n",    delegate);
 	printf("=================================================================\n");
 	return;
 }
@@ -86,15 +88,15 @@ static inline int config_file_read(void)
 
 	// actually parse values
 	json_fetch_int_with_default(parent, "skip_n_frames", &skip_n_frames, 5);
-    json_fetch_string_with_default(parent, "model", model, buf_len, "/usr/bin/dnn/ssdlite_mobilenet_v2_coco.tflite");
-	json_fetch_string_with_default(parent, "input_pipe", input_pipe, buf_len, "/run/mpa/hires/");
+    json_fetch_string_with_default(parent, "model", model, CHAR_BUF_SIZE, "/usr/bin/dnn/ssdlite_mobilenet_v2_coco.tflite");
+	json_fetch_string_with_default(parent, "input_pipe", input_pipe, CHAR_BUF_SIZE, "/run/mpa/hires/");
+	json_fetch_string_with_default(parent, "delegate", delegate, CHAR_BUF_SIZE, "gpu");
 
 	if(json_get_parse_error_flag()){
 		fprintf(stderr, "failed to parse config file %s\n", CONFIG_FILE);
 		cJSON_Delete(parent);
 		return -1;
 	}
-
 
 	// write modified data to disk if neccessary
 	if(json_get_modified_flag()){
@@ -104,10 +106,4 @@ static inline int config_file_read(void)
 	cJSON_Delete(parent);
 	return 0;
 }
-
-
-
-
-
-
 #endif // end CONFIG_FILE_H

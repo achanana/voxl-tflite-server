@@ -1,5 +1,5 @@
-#ifndef UNDISTORT_H
-#define UNDISTORT_H
+#ifndef RESIZE_H
+#define RESIZE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -29,11 +29,11 @@ int mcv_init_resize_map(int w_in, int h_in, int w_out, int h_out, undistort_map_
 
 // resizes the image using the lookup table created by mcv_init_resize_map
 int mcv_resize_image(const uint8_t* input, uint8_t* output, undistort_map_t* map);
-
+// "" but with 3 channels
 int mcv_resize_8uc3_image(const uint8_t* rgb_input, uint8_t* output, undistort_map_t* map);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // UNDISTORT_H
+#endif // RESIZE_H
