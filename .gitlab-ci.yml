@@ -10,12 +10,12 @@ include:
 
 
 stages:
-    - nightly_cross_865_dev
-    - build_cross_865_dev
-    - deploy_cross_865_dev
     - nightly_cross_820_dev
     - build_cross_820_dev
     - deploy_cross_820_dev
     - nightly_cross_820_stable
     - build_cross_820_stable
     - deploy_cross_820_stable
+    - nightly_cross_865_dev
+    - build_cross_865_dev
+    - deploy_cross_865_dev
