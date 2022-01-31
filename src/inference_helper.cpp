@@ -336,10 +336,6 @@ bool InferenceHelper::run_inference(cv::Mat preprocessed_image){
 bool InferenceHelper::postprocess_object_detect(cv::Mat& output_image, std::vector<ai_detection_t>& detections_vector){
     start_time = rc_nanos_monotonic_time();
     
-    // if (detections_vector == nullptr){
-    //     fprintf(stderr, "%s recieved nullptr for detections vector\n", __FUNCTION__);
-    //     return false;
-    // }
     static std::vector<std::string> labels;
     static size_t label_count;
 

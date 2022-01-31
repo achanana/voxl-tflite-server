@@ -24,19 +24,17 @@
 #include "ai_detection.h"
 #include "resize.h"
 
-#define MAX_IMAGE_SIZE  12441600  // 4k YUV image size
-#define QUEUE_SIZE      32        // max messages to be stored in queue
+#define MAX_IMAGE_SIZE  12441600            // 4k YUV image size
+#define QUEUE_SIZE      32                  // max messages to be stored in queue
 
-// TFlite message data
 struct TFLiteMessage {
-    camera_image_metadata_t metadata;      // image metadata information
-    uint8_t image_pixels[MAX_IMAGE_SIZE];  // image pixels
+    camera_image_metadata_t metadata;       // image metadata information
+    uint8_t image_pixels[MAX_IMAGE_SIZE];   // image pixels
 };
 
-// TFlite message queue
 struct TFLiteCamQueue {
-    TFLiteMessage queue[QUEUE_SIZE];    // camera frame queue
-    int insert_idx = 0;                 // next element insert location (between 0 - QUEUE_SIZE)
+    TFLiteMessage queue[QUEUE_SIZE];        // camera frame queue
+    int insert_idx = 0;                     // next element insert location (between 0 - QUEUE_SIZE)
 };
 
 // delegate enum, for code readability
