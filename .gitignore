@@ -1,6 +1,11 @@
-.vscode/
-build*/
-*.ipk
-ipk/*.tar.gz
-ipk/data
 .bash_history
+build
+build32
+build64
+*.ipk
+*.deb
+pkg/IPK
+pkg/DEB
+pkg/data
+*.core
+.vscode
