@@ -55,12 +55,15 @@
 #define TFLITE_DETECTION_PATH (MODAL_PIPE_DEFAULT_BASE_DIR "tflite_data/")
 
 char* coco_labels  = (char*)"/usr/bin/dnn/coco_labels.txt";
+char* city_labels  = (char*)"/usr/bin/dnn/cityscapes_labels.txt";
+
 bool en_debug = false;
 bool en_timing = false;
+bool do_normalize = true;
 
 InferenceHelper* inf_helper;
 
-enum PostProcessType { OBJECT_DETECT, MONO_DEPTH };
+enum PostProcessType { OBJECT_DETECT, MONO_DEPTH, SEGMENTATION };
 PostProcessType post_type;
 
 
@@ -173,11 +176,14 @@ static void* inference_worker(void* data)
             pipe_server_write_camera_frame(IMAGE_CH, new_frame->metadata, (char*)output_image.data);
         }
         else if (post_type == MONO_DEPTH){
-            if (!inf_helper->postprocess_mono_depth(new_frame->metadata, &output_image)) continue;
+            if (!inf_helper->postprocess_mono_depth(new_frame->metadata, output_image)) continue;
+            pipe_server_write_camera_frame(IMAGE_CH, new_frame->metadata, (char*)output_image.data);
+        }
+        else if (post_type == SEGMENTATION){
+            if (!inf_helper->postprocess_segmentation(new_frame->metadata, output_image)) continue;
             pipe_server_write_camera_frame(IMAGE_CH, new_frame->metadata, (char*)output_image.data);
         }
     }
-    
     return NULL;
 }
 
@@ -267,11 +273,32 @@ int main(int argc, char *argv[])
 	// initialize InferenceHelper
 	////////////////////////////////////////////////////////////////////////////////
     DelegateOpt opt_ = GPU;     // default for MAI models
-    if (!strcmp(delegate, "xnnpack")) opt_ = XNNPACK;
+    if (!strcmp(delegate, "cpu")) opt_ = XNNPACK;
     else if (!strcmp(delegate, "nnapi")) opt_ = NNAPI;
 
+    char* labels_in_use = coco_labels;
+    // set postprocess type
+    if (!strcmp(model, "/usr/bin/dnn/ssdlite_mobilenet_v2_coco.tflite")){
+        post_type = OBJECT_DETECT;
+    } 
+    else if (!strcmp(model, "/usr/bin/dnn/fastdepth_float16_quant.tflite")){
+        post_type = MONO_DEPTH;
+    }
+    else if (!strcmp(model, "/usr/bin/dnn/edgetpu_deeplab_321_os32_float16_quant.tflite")){
+        post_type = SEGMENTATION;
+        // special for deeplab: 
+        // input is NOT expected to be normalized. This is used in the inference function later
+        // set labels to cityscapes file
+        do_normalize = false;
+        labels_in_use = city_labels;
+    }
+    else{
+        fprintf(stderr, "WARNING: Unknown model type provided! Defaulting post-process to object detection.\n");
+        post_type = OBJECT_DETECT;
+    }
+
     // create our inference helper!
-    inf_helper = new InferenceHelper(model, coco_labels, opt_, en_debug, en_timing);
+    inf_helper = new InferenceHelper(model, labels_in_use, opt_, en_debug, en_timing, do_normalize);
 
     // store cam name
     std::string full_path(input_pipe);
@@ -279,18 +306,6 @@ int main(int argc, char *argv[])
     cam_name.pop_back();
 
     inf_helper->cam_name = cam_name;
-
-    // set postprocess type
-    if (!strcmp(model, "/usr/bin/dnn/ssdlite_mobilenet_v2_coco.tflite")) post_type = OBJECT_DETECT;
-    else if (!strcmp(model, "/usr/bin/dnn/midas_v2.tflite")){
-        fprintf(stderr,"\n\nWARNING: Selected Midas V2 model which requires hires input. Overriding input pipe to hires\n\n");
-        snprintf(input_pipe, sizeof(input_pipe), "%s", HIRES_PIPE);
-        post_type = MONO_DEPTH;
-    }
-    else{
-        fprintf(stderr, "WARNING: Unknown model type provided! Defaulting post-process to object detection.\n");
-        post_type = OBJECT_DETECT;
-    }
 
     main_running = 1;
 

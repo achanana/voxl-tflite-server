@@ -59,6 +59,46 @@ float* TensorData(TfLiteTensor* tensor, int batch_index)
     return nullptr;
 }
 
+// Gets the int32_t tensor data pointer
+template<>
+int32_t* TensorData(TfLiteTensor* tensor, int batch_index)
+{
+    int nelems = 1;
+
+    for (int i = 1; i < tensor->dims->size; i++){
+        nelems *= tensor->dims->data[i];
+    }
+
+    switch (tensor->type){
+        case kTfLiteInt32:
+            return tensor->data.i32 + nelems * batch_index;
+        default:
+            fprintf(stderr, "Error in %s: should not reach here\n", __FUNCTION__);
+    }
+
+    return nullptr;
+}
+
+// Gets the int64_t tensor data pointer
+template<>
+int64_t* TensorData(TfLiteTensor* tensor, int batch_index)
+{
+    int nelems = 1;
+
+    for (int i = 1; i < tensor->dims->size; i++){
+        nelems *= tensor->dims->data[i];
+    }
+
+    switch (tensor->type){
+        case kTfLiteInt64:
+            return tensor->data.i64 + nelems * batch_index;
+        default:
+            fprintf(stderr, "Error in %s: should not reach here\n", __FUNCTION__);
+    }
+
+    return nullptr;
+}
+
 // Gets the int8_t tensor data pointer
 template<>
 int8_t* TensorData(TfLiteTensor* tensor, int batch_index)
@@ -132,11 +172,12 @@ static uint64_t rc_nanos_monotonic_time()
 	return ((uint64_t)ts.tv_sec*1000000000)+ts.tv_nsec;
 }
 
-InferenceHelper::InferenceHelper(char* model_file, char* labels_file, DelegateOpt delegate_choice, bool _en_debug, bool _en_timing)
+InferenceHelper::InferenceHelper(char* model_file, char* labels_file, DelegateOpt delegate_choice, bool _en_debug, bool _en_timing, bool _do_normalize)
 {
     // set our helper varss
     en_debug = _en_debug;
     en_timing = _en_timing;
+    do_normalize = _do_normalize;
     hardware_selection = delegate_choice;
     labels_location = labels_file;
 
@@ -188,7 +229,18 @@ InferenceHelper::InferenceHelper(char* model_file, char* labels_file, DelegateOp
 
         case NNAPI: {
             #ifdef BUILD_865
-            nnapi_delegate = new tflite::StatefulNnApiDelegate();
+            const auto* nnapi_impl = NnApiImplementation();
+            std::string temp = tflite::nnapi::GetStringDeviceNamesList(nnapi_impl);
+            fprintf(stderr, "device names: %s\n", temp.c_str());
+            tflite::StatefulNnApiDelegate::Options nnapi_opts;
+            nnapi_opts.execution_preference = tflite::StatefulNnApiDelegate::Options::ExecutionPreference::kSustainedSpeed;
+            nnapi_opts.allow_fp16 = true;
+            nnapi_opts.execution_priority = ANEURALNETWORKS_PRIORITY_HIGH;
+            nnapi_opts.use_burst_computation = true;
+            
+            // nnapi_opts.accelerator_name = "libunifiedhal-driver.so2"; //"libunifiedhal-driver.so1";
+
+            nnapi_delegate = new tflite::StatefulNnApiDelegate(nnapi_opts);            
             if (interpreter->ModifyGraphWithDelegate(nnapi_delegate) != kTfLiteOk) fprintf(stderr, "Failed to apply NNAPI delegate\n");
             #endif
         }
@@ -269,9 +321,6 @@ bool InferenceHelper::preprocess_image(camera_image_metadata_t &meta, char* fram
 
 bool InferenceHelper::run_inference(cv::Mat preprocessed_image){
     start_time = rc_nanos_monotonic_time();
-    // for both MAI models, input is expecting normalized data with a mean of 127.0f
-    // for custom models, update this and PIXEL_MEAN to your specific input params
-    // static bool do_normalize = true;
 
     // Get input dimension from the input tensor metadata assuming one input only
     int input = interpreter->inputs()[0];
@@ -284,8 +333,10 @@ bool InferenceHelper::run_inference(cv::Mat preprocessed_image){
             for (int row = 0; row < model_height; row++) {
                 const uchar* row_ptr = preprocessed_image.ptr(row);
                 for (int i = 0; i < row_elems; i++) {
-                    // if (do_normalize) // check disabled for speed
-                    dst[i] = (row_ptr[i] - PIXEL_MEAN) / PIXEL_MEAN;
+                    if (do_normalize) 
+                        dst[i] = (row_ptr[i] - PIXEL_MEAN) / PIXEL_MEAN;
+                    else 
+                        dst[i] = (row_ptr[i]);
                 }
                 dst += row_elems;
             }
@@ -406,13 +457,8 @@ bool InferenceHelper::postprocess_object_detect(cv::Mat& output_image, std::vect
     return true;
 }
 
-bool InferenceHelper::postprocess_mono_depth(camera_image_metadata_t &meta, cv::Mat* output_image){
+bool InferenceHelper::postprocess_mono_depth(camera_image_metadata_t &meta, cv::Mat &output_image){
     start_time = rc_nanos_monotonic_time();
-
-    if (output_image == nullptr){
-        fprintf(stderr, "%s recieved nullptr for output image\n", __FUNCTION__);
-        return false;
-    }
 
     TfLiteTensor* output_locations    = interpreter->tensor(interpreter->outputs()[0]);
     float* depth  = TensorData<float>(output_locations, 0);
@@ -431,9 +477,82 @@ bool InferenceHelper::postprocess_mono_depth(camera_image_metadata_t &meta, cv::
     double min_val, max_val;
     cv::Mat depthmap_visual;
     cv::minMaxLoc(depthImage, &min_val, &max_val);
-    depthmap_visual = 255 * (depthImage - min_val) / (max_val - min_val); // * 255 for "scaled" disparity, 15 for midas default
+    depthmap_visual = 255 * (depthImage - min_val) / (max_val - min_val); // * 255 for "scaled" disparity
     depthmap_visual.convertTo(depthmap_visual, CV_8U);
-    cv::applyColorMap(depthmap_visual, *output_image, 4); // opencv COLORMAP_JET
+    cv::applyColorMap(depthmap_visual, output_image, 4); // opencv COLORMAP_JET
+
+    if (en_timing) total_postprocess_time += ((rc_nanos_monotonic_time() - start_time)/1000000.);
+
+    return true;
+}
+
+// pre-defined color map for each class, corresponds to cityscapes_labels.txt
+constexpr uint8_t color_map[57] = {
+    139,0,0,                    
+    255,0,0,
+    255,99,71,
+    250,128,114,
+    255,140,0,
+    255,255,0,
+    189,183,107,
+    154,205,50,
+    0,255,0,
+    0,100,0,
+    0,250,154,
+    0,128,128,
+    30,144,255,
+    25,25,112,
+    138,43,226,
+    75,0,130,
+    139,0,139,
+    238,130,238,
+    255,20,147
+}; 
+
+#define RIGHT_PIXEL_BORDER 110
+
+bool InferenceHelper::postprocess_segmentation(camera_image_metadata_t &meta, cv::Mat &output_image){
+    start_time = rc_nanos_monotonic_time();
+
+    static std::vector<std::string> labels;
+    static size_t label_count;
+
+    if (labels.empty()){
+        if (ReadLabelsFile(labels_location, &labels, &label_count) != kTfLiteOk){
+            fprintf(stderr, "ERROR: Unable to read labels file\n");
+            return false;
+        }
+    }
+
+    TfLiteTensor* output_locations    = interpreter->tensor(interpreter->outputs()[0]);
+    int64_t* depth  = TensorData<int64_t>(output_locations, 0);
+
+    cv::Mat temp(model_height, model_width, CV_8UC3, cv::Scalar(0,0,0));
+
+    for (int i = 0; i < model_width; i++){
+        for (int j = 0; j < model_height; j++){
+            cv::Vec3b color = temp.at<cv::Vec3b>(cv::Point(j,i));
+            color[0] = color_map[depth[(i*model_width) + j]*3];
+            color[1] = color_map[depth[(i*model_width) + j]*3 + 1];
+            color[2] = color_map[depth[(i*model_width) + j]*3 + 2];
+            temp.at<cv::Vec3b>(cv::Point(j,i)) = color;
+        }
+    }
+
+    cv::copyMakeBorder(temp, temp, 0, 0, 0, RIGHT_PIXEL_BORDER, cv::BORDER_CONSTANT);
+
+    for (unsigned int i = 0; i < labels.size(); i++){
+        cv::putText(temp, labels[i], cv::Point(325, 16 * (i+1)), cv::FONT_HERSHEY_SIMPLEX, 0.4, cv::Scalar(color_map[(i*3)],color_map[(i*3)+1],color_map[(i*3)+2]), 1);
+    }
+    
+    // now, setup metadata since we modified the output image
+    meta.format = IMAGE_FORMAT_RGB;
+    meta.width = model_width + RIGHT_PIXEL_BORDER;
+    meta.height = model_height;
+    meta.stride = meta.width * 3;
+    meta.size_bytes = meta.height * meta.width * 3; 
+
+    output_image = temp;
 
     if (en_timing) total_postprocess_time += ((rc_nanos_monotonic_time() - start_time)/1000000.);
 
@@ -449,11 +568,7 @@ void InferenceHelper::print_summary_stats(){
         fprintf(stderr, "Inference Time      -> Total: %6.2fms, Average: %6.2fms\n", (double)(total_inference_time), (double)((total_inference_time/(num_frames_processed))));
         fprintf(stderr, "Postprocessing Time -> Total: %6.2fms, Average: %6.2fms\n", (double)(total_postprocess_time), (double)((total_postprocess_time/(num_frames_processed))));
         fprintf(stderr, "------------------------------------------\n");
-    }
-
-    #ifdef BUILD_865
-    fprintf(stderr, "\n\nWARNING: may abort below, ignore error if present. is a deeper issue stemming from nnapi delegate\n\n");
-    #endif    
+    } 
 }
 
 InferenceHelper::~InferenceHelper(){    

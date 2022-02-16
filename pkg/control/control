@@ -5,6 +5,6 @@ Priority: optional
 Architecture: all
 Depends: libmodal-pipe,libmodal-json, voxl-opencv, voxl-tflite(>=2.2.3)
 Maintainer: modalai.com
-Description: client of voxl-camera-server that does deep learning (object detection, monocular depth estimation)
+Description: client of voxl-camera-server that does deep learning 
 Conflicts: voxl-mpa-tflite-server
 Replaces: voxl-mpa-tflite-server

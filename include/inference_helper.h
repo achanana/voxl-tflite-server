@@ -19,6 +19,7 @@
 #ifdef BUILD_865
 #include "tensorflow/lite/delegates/xnnpack/xnnpack_delegate.h"
 #include "tensorflow/lite/delegates/nnapi/nnapi_delegate.h"
+#include "tensorflow/lite/nnapi/nnapi_util.h"
 #endif
 
 #include "ai_detection.h"
@@ -44,7 +45,7 @@ class InferenceHelper
 {
     public:
         // Constructor
-        InferenceHelper(char* model_file, char* labels_file, DelegateOpt delegate_choice, bool _en_debug, bool _en_timing);
+        InferenceHelper(char* model_file, char* labels_file, DelegateOpt delegate_choice, bool _en_debug, bool _en_timing, bool _do_normalize);
         // Destructor
         ~InferenceHelper();
 
@@ -56,7 +57,8 @@ class InferenceHelper
 
         // post-processing funcs, specific to model type (output tensor format)
         bool postprocess_object_detect(cv::Mat &output_image, std::vector<ai_detection_t>& detections_vector);
-        bool postprocess_mono_depth(camera_image_metadata_t &meta, cv::Mat* output_image);
+        bool postprocess_mono_depth(camera_image_metadata_t &meta, cv::Mat &output_image);
+        bool postprocess_segmentation(camera_image_metadata_t &meta, cv::Mat &output_image);
 
         // summary timing stats
         void print_summary_stats();
@@ -94,6 +96,7 @@ class InferenceHelper
 
         bool en_debug;
         bool en_timing;
+        bool do_normalize;
 
         // timing variables
         float total_preprocess_time = 0;

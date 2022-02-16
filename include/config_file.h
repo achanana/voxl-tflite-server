@@ -37,9 +37,10 @@
 
 #include <modal_json.h>
 
-#define CHAR_BUF_SIZE 64
+#define CHAR_BUF_SIZE 128
 #define CONFIG_FILE "/etc/modalai/voxl-tflite-server.conf"
 
+#ifdef BUILD_865
 #define CONFIG_FILE_HEADER "\
 /**\n\
  * This file contains configuration that's specific to voxl-tflite-server.\n\
@@ -48,12 +49,31 @@
  *                   input frame rate, we recommend skipping 5 frame resulting\n\
  *                   in 5hz model output. For 30Hz/maximum output, set to 0.\n\
  * model         - which model to use. Currently support mobilenet for\n\
- *                   object detection or midas for monocular depth\n\
+ *                   object detection, fastdepth for monocular depth, or \n\
+ * 					 deeplab for semantic segmentation.\n\
  * input_pipe    - which camera to use (tracking or hires).\n\
- * delegate      - optional hardware acceleration: gpu, xnnpack, or nnapi. If\n\
+ * delegate      - optional hardware acceleration: gpu, cpu, or nnapi. If\n\
  *                   the selection is invalid for the current model/hardware, \n\
  *                   will silently fall back to base cpu delegate.\n\
  */\n"
+#endif
+
+#ifndef BUILD_865
+#define CONFIG_FILE_HEADER "\
+/**\n\
+ * This file contains configuration that's specific to voxl-tflite-server.\n\
+ *\n\
+ * skip_n_frames - how many frames to skip between processed frames. For 30Hz\n\
+ *                   input frame rate, we recommend skipping 5 frame resulting\n\
+ *                   in 5hz model output. For 30Hz/maximum output, set to 0.\n\
+ * model         - which model to use. Currently only support mobilenet\n\
+ *                   for object detection.\n\
+ * input_pipe    - which camera to use (tracking or hires).\n\
+ * delegate      - optional hardware acceleration: gpu or cpu. If\n\
+ *                   the selection is invalid for the current model/hardware, \n\
+ *                   will silently fall back to base cpu delegate.\n\
+ */\n"
+#endif
 
 
 static int skip_n_frames;

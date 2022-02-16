@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.3)
 
 project(voxl-tflite-server)
 
-
 # James' standard list of cmake flags
 set(CMAKE_C_FLAGS "-std=gnu99 -Wno-unused-parameter -Wall -Wextra -Wuninitialized \
 	-Wunused-variable -Wdouble-promotion -Wmissing-prototypes \

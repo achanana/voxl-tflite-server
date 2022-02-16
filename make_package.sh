@@ -159,8 +159,13 @@ fi
 
 if [ -d "scripts" ]; then
 	sudo mkdir -p $DATA_DIR/usr/bin/
-	sudo chmod +x scripts/*
-	sudo cp scripts/* $DATA_DIR/usr/bin/
+	sudo chmod +x scripts/*/*
+	if [ $MAKE_DEB == false ]; then
+		sudo cp scripts/820/* $DATA_DIR/usr/bin/
+	fi
+	if [ $MAKE_IPK == false ]; then
+		sudo cp scripts/865/* $DATA_DIR/usr/bin/
+	fi
 fi
 
 if [ -d "bash_completions" ]; then
@@ -169,7 +174,12 @@ if [ -d "bash_completions" ]; then
 fi
 
 if [ -d "misc_files" ]; then
-	sudo cp -R misc_files/* $DATA_DIR/
+	sudo cp -R misc_files/* $DATA_DIR/	
+	if [ $MAKE_DEB == false ]; then
+		rm $DATA_DIR/usr/bin/dnn/cityscapes_labels.txt
+		rm $DATA_DIR/usr/bin/dnn/edgetpu_deeplab_321_os32_float16_quant.tflite
+		rm $DATA_DIR/usr/bin/dnn/fastdepth_float16_quant.tflite
+	fi
 fi
 
 if [ -d "bash_profile" ]; then
