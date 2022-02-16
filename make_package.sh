@@ -179,6 +179,8 @@ if [ -d "misc_files" ]; then
 		rm $DATA_DIR/usr/bin/dnn/cityscapes_labels.txt
 		rm $DATA_DIR/usr/bin/dnn/edgetpu_deeplab_321_os32_float16_quant.tflite
 		rm $DATA_DIR/usr/bin/dnn/fastdepth_float16_quant.tflite
+		rm $DATA_DIR/usr/bin/dnn/lite-model_efficientnet_lite4_uint8_2.tflite
+		rm $DATA_DIR/usr/bin/dnn/imagenet_labels.txt
 	fi
 fi
 

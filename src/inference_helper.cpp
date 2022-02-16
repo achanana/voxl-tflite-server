@@ -231,14 +231,19 @@ InferenceHelper::InferenceHelper(char* model_file, char* labels_file, DelegateOp
             #ifdef BUILD_865
             const auto* nnapi_impl = NnApiImplementation();
             std::string temp = tflite::nnapi::GetStringDeviceNamesList(nnapi_impl);
-            fprintf(stderr, "device names: %s\n", temp.c_str());
+            // fprintf(stderr, "device names: %s\n", temp.c_str());
             tflite::StatefulNnApiDelegate::Options nnapi_opts;
             nnapi_opts.execution_preference = tflite::StatefulNnApiDelegate::Options::ExecutionPreference::kSustainedSpeed;
             nnapi_opts.allow_fp16 = true;
             nnapi_opts.execution_priority = ANEURALNETWORKS_PRIORITY_HIGH;
             nnapi_opts.use_burst_computation = true;
+            nnapi_opts.disallow_nnapi_cpu = false;
+            nnapi_opts.max_number_delegated_partitions = -1;
             
-            // nnapi_opts.accelerator_name = "libunifiedhal-driver.so2"; //"libunifiedhal-driver.so1";
+            // let nnapi decide what is the best hardware accel to use
+
+            // can manually specificy, the HTA/NPU is shown below
+            // nnapi_opts.accelerator_name = "libunifiedhal-driver.so2"; 
 
             nnapi_delegate = new tflite::StatefulNnApiDelegate(nnapi_opts);            
             if (interpreter->ModifyGraphWithDelegate(nnapi_delegate) != kTfLiteOk) fprintf(stderr, "Failed to apply NNAPI delegate\n");
@@ -258,9 +263,6 @@ InferenceHelper::InferenceHelper(char* model_file, char* labels_file, DelegateOp
     model_height   = dims->data[1];
     model_width    = dims->data[2];
     model_channels = dims->data[3];
-
-    resize_output = (uint8_t*)malloc(model_height * model_width * sizeof(uint8_t));
-    // resize_output.resize(model_height * model_width);
 }
 
 bool InferenceHelper::preprocess_image(camera_image_metadata_t &meta, char* frame, cv::Mat &preprocessed_image, cv::Mat &output_image){
@@ -272,6 +274,13 @@ bool InferenceHelper::preprocess_image(camera_image_metadata_t &meta, char* fram
         mcv_init_resize_map(meta.width, meta.height, model_width, model_height, &map);
         input_height = meta.height;
         input_width = meta.width;
+        
+        if (meta.format == IMAGE_FORMAT_RAW8){
+            resize_output = (uint8_t*)malloc(model_height * model_width * sizeof(uint8_t));
+        }
+        else {
+            resize_output = (uint8_t*)malloc(model_height * model_width * sizeof(uint8_t) * 3);
+        }
         return false;
     }
 
@@ -289,28 +298,32 @@ bool InferenceHelper::preprocess_image(camera_image_metadata_t &meta, char* fram
             #ifndef BUILD_865
             cv::cvtColor(yuv, output_image, CV_YUV2RGB_NV21);
             #endif
+            mcv_resize_8uc3_image(output_image.data, resize_output, &map);
+            cv::Mat holder(model_height, model_width, CV_8UC3, (uchar*)resize_output);
+
+            preprocessed_image = holder;
             meta.format = IMAGE_FORMAT_RGB;
             meta.size_bytes     = (meta.height * meta.width * 3);
             meta.stride         = (meta.width * 3);
         }
             break;
 
-        case IMAGE_FORMAT_RAW8:
+        case IMAGE_FORMAT_RAW8: {
             output_image = gray;
+            // resize to model input dims
+            mcv_resize_image(gray.data, resize_output, &map);
+
+            // stack resized input to make "3 channel" grayscale input
+            cv::Mat holder(model_height, model_width, CV_8UC1, (uchar*)resize_output);
+            cv::Mat in[] = {holder, holder, holder};
+            cv::merge(in, 3, preprocessed_image);
+        }
             break;
 
         default:
             fprintf(stderr, "Unexpected image format %d received! Exiting now.\n", meta.format);
             return false;
     }
-
-    // resize to model input dims
-    mcv_resize_image(gray.data, resize_output, &map);
-
-    // stack resized input to make "3 channel" grayscale input
-    cv::Mat holder(model_height, model_width, CV_8UC1, (uchar*)resize_output);
-    cv::Mat in[] = {holder, holder, holder};
-    cv::merge(in, 3, preprocessed_image);
 
     if (en_timing) total_preprocess_time += ((rc_nanos_monotonic_time() - start_time)/1000000.);
 
@@ -525,16 +538,16 @@ bool InferenceHelper::postprocess_segmentation(camera_image_metadata_t &meta, cv
     }
 
     TfLiteTensor* output_locations    = interpreter->tensor(interpreter->outputs()[0]);
-    int64_t* depth  = TensorData<int64_t>(output_locations, 0);
+    int64_t* classes  = TensorData<int64_t>(output_locations, 0);
 
     cv::Mat temp(model_height, model_width, CV_8UC3, cv::Scalar(0,0,0));
 
     for (int i = 0; i < model_width; i++){
         for (int j = 0; j < model_height; j++){
             cv::Vec3b color = temp.at<cv::Vec3b>(cv::Point(j,i));
-            color[0] = color_map[depth[(i*model_width) + j]*3];
-            color[1] = color_map[depth[(i*model_width) + j]*3 + 1];
-            color[2] = color_map[depth[(i*model_width) + j]*3 + 2];
+            color[0] = color_map[classes[(i*model_width) + j]*3];
+            color[1] = color_map[classes[(i*model_width) + j]*3 + 1];
+            color[2] = color_map[classes[(i*model_width) + j]*3 + 2];
             temp.at<cv::Vec3b>(cv::Point(j,i)) = color;
         }
     }
@@ -553,6 +566,36 @@ bool InferenceHelper::postprocess_segmentation(camera_image_metadata_t &meta, cv
     meta.size_bytes = meta.height * meta.width * 3; 
 
     output_image = temp;
+
+    if (en_timing) total_postprocess_time += ((rc_nanos_monotonic_time() - start_time)/1000000.);
+
+    return true;
+}
+
+bool InferenceHelper::postprocess_classification(camera_image_metadata_t &meta, cv::Mat &output_image){
+    start_time = rc_nanos_monotonic_time();
+
+    static std::vector<std::string> labels;
+    static size_t label_count;
+
+    if (labels.empty()){
+        if (ReadLabelsFile(labels_location, &labels, &label_count) != kTfLiteOk){
+            fprintf(stderr, "ERROR: Unable to read labels file\n");
+            return false;
+        }
+    }
+
+    TfLiteTensor* output_locations    = interpreter->tensor(interpreter->outputs()[0]);
+    uint8_t* confidence_tensor  = TensorData<uint8_t>(output_locations, 0);
+
+    std::vector<uint8_t> confidences;
+    confidences.assign(confidence_tensor, confidence_tensor+1000);
+ 
+    uint8_t best_prob = *std::max_element(confidences.begin(),confidences.end());
+    int best_class = std::max_element(confidences.begin(),confidences.end()) - confidences.begin();
+
+    fprintf(stderr, "class: %s, prob: %d\n", labels[best_class].c_str(), best_prob);
+    cv::putText(output_image, labels[best_class], cv::Point(meta.width/3, 25), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0, 255, 0), 1);
 
     if (en_timing) total_postprocess_time += ((rc_nanos_monotonic_time() - start_time)/1000000.);
 

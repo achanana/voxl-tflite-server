@@ -56,11 +56,12 @@ int mcv_resize_8uc3_image(const uint8_t* rgb_input, uint8_t* output, undistort_m
 	// go through every pixel in output image
 	int out_pix = 0;
 	for(int pix=0; pix<n_pix; pix++){
+		out_pix = pix * 3;
 		// check for invalid (blank) pixels
 		if(L[pix].I[0]<0){
-			output[out_pix++] = 0;
-			output[out_pix++] = 0;
-			output[out_pix++] = 0;
+			output[out_pix] = 0;
+			output[out_pix+1] = 0;
+			output[out_pix+2] = 0;
 			continue;
 		}
 
@@ -96,22 +97,23 @@ int mcv_resize_8uc3_image(const uint8_t* rgb_input, uint8_t* output, undistort_m
 		uint16_t p11 = rgb_input[(map->w_in*(y1+1) + x1) * 3 + 2];
 
 		// multiply add each pixel with weighting
-		output[out_pix++] = (	p0*L[pix].F[0] +
+		output[out_pix] = (	p0*L[pix].F[0] +
 						    	p1*L[pix].F[1] +
 						    	p2*L[pix].F[2] +
 						    	p3*L[pix].F[3]) /256;
 
 		// multiply add each pixel with weighting
-		output[out_pix++] = (	p4*L[pix].F[0] +
+		output[out_pix+1] = (	p4*L[pix].F[0] +
 						    	p5*L[pix].F[1] +
 						    	p6*L[pix].F[2] +
 						    	p7*L[pix].F[3]) /256;
 
 		// multiply add each pixel with weighting
-		output[out_pix++] = (	p8*L[pix].F[0]  +
+		output[out_pix+2] = (	p8*L[pix].F[0]  +
 						    	p9*L[pix].F[1]  +
 						    	p10*L[pix].F[2] +
 						    	p11*L[pix].F[3]) /256;
+
 	}
 	return 0;
 }
@@ -132,18 +134,26 @@ int mcv_init_resize_map(int w_in, int h_in, int w_out, int h_out, undistort_map_
 	}
 	bilinear_lookup_t* L = map->L;
 
-    float x_r = ((float)(w_in - 1)/(float)(w_out - 1));
-    float y_r = ((float)(h_in - 1)/(float)(h_out - 1));
+    float x_r = ((float)(w_in - 1)/(float)(w_out));
+    float y_r = ((float)(h_in - 1)/(float)(h_out));
 
 	for(int v=0; v<h_out; ++v){
 		for(int u=0; u<w_out; ++u){
-            int x_l = floor(x_r * u);
-            int y_l = floor(y_r * v);
+            int x_l = (x_r * u);
+            int y_l = (y_r * v);
+			int x2 = x_l + 1;
+			int y2 = y_l + 1;
             // x and y difference for top left point
             float x_w = (x_r * u) - x_l;
             float y_w = (y_r * v) - y_l;
 
 			int pix = w_out*v + u;
+
+			if((x_l < 0 || x2 > (w_in-1)) || (y_l < 0 || y2 > (h_in-1))){
+				L[pix].I[0] = -1;
+				L[pix].I[1] = -1;
+				continue;
+			}
 
 			// populate lookup table with top left corner pixel
 			L[pix].I[0] = x_l;

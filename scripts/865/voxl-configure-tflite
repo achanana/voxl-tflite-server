@@ -192,8 +192,8 @@ no )
 done
 
 echo ""
-echo -e "do you want to run the tflite server with:\n (1) Mobilenet + Hires camera\n (2) Mobilenet + Tracking camera\n (3) FastDepth + Hires camera\n (4) FastDepth + Tracking camera\n (5) Deeplab + Hires camera\n (6) Deeplab + Tracking camera\n"
-select opt in "1" "2" "3" "4" "5" "6"; do
+echo -e "do you want to run the tflite server with:\n (1) Mobilenet + Hires camera\n (2) Mobilenet + Tracking camera\n (3) FastDepth + Hires camera\n (4) FastDepth + Tracking camera\n (5) Deeplab + Hires camera\n (6) Deeplab + Tracking camera\n (7) EfficientNet + Hires camera\n (8) EfficientNet + Tracking camera\n"
+select opt in "1" "2" "3" "4" "5" "6" "7" "8"; do
 case $opt in
 1 )
 	set_param_string model "/usr/bin/dnn/ssdlite_mobilenet_v2_coco.tflite"
@@ -217,6 +217,14 @@ case $opt in
 	break;;
 6 )
 	set_param_string model "/usr/bin/dnn/edgetpu_deeplab_321_os32_float16_quant.tflite"
+    set_param_string input_pipe "/run/mpa/tracking/"
+	break;;
+7 )
+	set_param_string model "/usr/bin/dnn/lite-model_efficientnet_lite4_uint8_2.tflite"
+    set_param_string input_pipe "/run/mpa/hires/"
+	break;;
+8 )
+	set_param_string model "/usr/bin/dnn/lite-model_efficientnet_lite4_uint8_2.tflite"
     set_param_string input_pipe "/run/mpa/tracking/"
 	break;;
 *)

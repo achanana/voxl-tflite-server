@@ -26,7 +26,7 @@
 #include "resize.h"
 
 #define MAX_IMAGE_SIZE  12441600            // 4k YUV image size
-#define QUEUE_SIZE      32                  // max messages to be stored in queue
+#define QUEUE_SIZE      24                  // max messages to be stored in queue
 
 struct TFLiteMessage {
     camera_image_metadata_t metadata;       // image metadata information
@@ -59,6 +59,7 @@ class InferenceHelper
         bool postprocess_object_detect(cv::Mat &output_image, std::vector<ai_detection_t>& detections_vector);
         bool postprocess_mono_depth(camera_image_metadata_t &meta, cv::Mat &output_image);
         bool postprocess_segmentation(camera_image_metadata_t &meta, cv::Mat &output_image);
+        bool postprocess_classification(camera_image_metadata_t &meta, cv::Mat &output_image);
 
         // summary timing stats
         void print_summary_stats();

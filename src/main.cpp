@@ -56,6 +56,7 @@
 
 char* coco_labels  = (char*)"/usr/bin/dnn/coco_labels.txt";
 char* city_labels  = (char*)"/usr/bin/dnn/cityscapes_labels.txt";
+char* imagenet_labels  = (char*)"/usr/bin/dnn/imagenet_labels.txt";
 
 bool en_debug = false;
 bool en_timing = false;
@@ -63,7 +64,7 @@ bool do_normalize = true;
 
 InferenceHelper* inf_helper;
 
-enum PostProcessType { OBJECT_DETECT, MONO_DEPTH, SEGMENTATION };
+enum PostProcessType { OBJECT_DETECT, MONO_DEPTH, SEGMENTATION, CLASSIFICATION };
 PostProcessType post_type;
 
 
@@ -183,6 +184,10 @@ static void* inference_worker(void* data)
             if (!inf_helper->postprocess_segmentation(new_frame->metadata, output_image)) continue;
             pipe_server_write_camera_frame(IMAGE_CH, new_frame->metadata, (char*)output_image.data);
         }
+        else if (post_type == CLASSIFICATION){
+            if (!inf_helper->postprocess_classification(new_frame->metadata, output_image)) continue;
+            pipe_server_write_camera_frame(IMAGE_CH, new_frame->metadata, (char*)output_image.data);
+        }
     }
     return NULL;
 }
@@ -291,6 +296,11 @@ int main(int argc, char *argv[])
         // set labels to cityscapes file
         do_normalize = false;
         labels_in_use = city_labels;
+    }
+    else if (!strcmp(model, "/usr/bin/dnn/lite-model_efficientnet_lite4_uint8_2.tflite")){
+        post_type = CLASSIFICATION;
+        do_normalize = false;
+        labels_in_use = imagenet_labels;
     }
     else{
         fprintf(stderr, "WARNING: Unknown model type provided! Defaulting post-process to object detection.\n");
