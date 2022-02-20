@@ -80,21 +80,29 @@ int mcv_resize_8uc3_image(const uint8_t* rgb_input, uint8_t* output, undistort_m
 
 		/// R ///
 		uint16_t p0 = rgb_input[(map->w_in*y1 + x1) * 3];
-		uint16_t p1 = rgb_input[(map->w_in*y1 + x1 + 1) * 3 ];
-		uint16_t p2 = rgb_input[(map->w_in*(y1+1) + x1) * 3];
-		uint16_t p3 = rgb_input[(map->w_in*(y1+1) + x1) * 3];
-
 		/// G ///
 		uint16_t p4 = rgb_input[(map->w_in*y1 + x1) * 3 + 1];
-		uint16_t p5 = rgb_input[(map->w_in*y1 + x1 + 1) * 3 + 1];
-		uint16_t p6 = rgb_input[(map->w_in*(y1+1) + x1) * 3 + 1];
-		uint16_t p7 = rgb_input[(map->w_in*(y1+1) + x1) * 3 + 1];
-
 		/// B ///
 		uint16_t p8 = rgb_input[(map->w_in*y1 + x1) * 3 + 2];
+		/// R ///
+		uint16_t p1 = rgb_input[(map->w_in*y1 + x1 + 1) * 3 ];
+		/// G ///
+		uint16_t p5 = rgb_input[(map->w_in*y1 + x1 + 1) * 3 + 1];
+		/// B ///
 		uint16_t p9 = rgb_input[(map->w_in*y1 + x1 + 1) * 3 + 2];
-		uint16_t p10 = rgb_input[(map->w_in*(y1+1) + x1) * 3 + 2];
-		uint16_t p11 = rgb_input[(map->w_in*(y1+1) + x1) * 3 + 2];
+		/// R ///
+		uint16_t p2 = rgb_input[(map->w_in*(y1+1) + x1) * 3];
+		/// G ///
+		uint16_t p6 = rgb_input[(map->w_in*(y1+1) + x1) * 3 + 1];
+		/// B ///
+		uint16_t p7 = rgb_input[(map->w_in*(y1+1) + x1) * 3 + 2];
+		/// R ///
+		uint16_t p3 = rgb_input[(map->w_in*(y1+1) + x1 + 1) * 3];
+		/// G ///
+		uint16_t p10 = rgb_input[(map->w_in*(y1+1) + x1 + 1) * 3 + 1];
+		/// B ///
+		uint16_t p11 = rgb_input[(map->w_in*(y1+1) + x1 + 1) * 3 + 2];
+
 
 		// multiply add each pixel with weighting
 		output[out_pix] = (	p0*L[pix].F[0] +
