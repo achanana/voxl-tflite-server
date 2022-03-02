@@ -191,6 +191,20 @@ no )
 	esac
 done
 
+echo " "
+echo "do you want to enable or disable ${NAME}"
+select opt in "enable" "disable"; do
+case $opt in
+enable )
+	break;;
+disable )
+	disable_service_and_exit
+	break;;
+*)
+	echo "invalid option"
+	esac
+done
+
 echo ""
 echo -e "do you want to run the tflite server with:\n (1) Mobilenet + Hires camera\n (2) Mobilenet + Tracking camera\n"
 select opt in "1" "2"; do
@@ -208,18 +222,5 @@ case $opt in
 	esac
 done
 
-echo " "
-echo "do you want to enable or disable ${NAME}"
-select opt in "enable" "disable"; do
-case $opt in
-enable )
-	enable_service_and_exit
-	break;;
-disable )
-	disable_service_and_exit
-	break;;
-*)
-	echo "invalid option"
-	esac
-done
+enable_service_and_exit
 # all done!
