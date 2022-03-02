@@ -160,11 +160,12 @@ static void* inference_worker(void* data)
         queue_index = ((queue_index + 1) % QUEUE_SIZE);
 
         cv::Mat preprocessed_image, output_image;
-
         if (!inf_helper->preprocess_image(new_frame->metadata, (char*)new_frame->image_pixels, preprocessed_image, output_image)) continue;
+        int new_format = new_frame->metadata.format;
 
         if (!inf_helper->run_inference(preprocessed_image)) continue;
 
+        new_frame->metadata.format = new_format;
         if (post_type == OBJECT_DETECT){
             std::vector<ai_detection_t> detections;
             if (!inf_helper->postprocess_object_detect(output_image, detections)) continue;
@@ -206,6 +207,8 @@ static void _camera_helper_cb(__attribute__((unused))int ch, camera_image_metada
 		n_skipped++;
 		return;
 	}
+    else n_skipped = 0;
+
     if (pipe_client_bytes_in_pipe(ch)>0){
         n_skipped++;
 		if(en_debug) fprintf(stderr, "WARNING, skipping frame on channel %d due to frame backup\n", ch);
