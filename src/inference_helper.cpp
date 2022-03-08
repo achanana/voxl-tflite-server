@@ -201,8 +201,14 @@ InferenceHelper::InferenceHelper(char* model_file, char* labels_file, DelegateOp
     }
 
     // leaving as single threaded for now
-    interpreter->SetNumThreads(1);
+    #ifdef BUILD_865
+    interpreter->SetNumThreads(8);
+    #endif
 
+    #ifndef BUILD_865
+    interpreter->SetNumThreads(4);
+    #endif
+    
     // allow fp precision loss for faster inference
     interpreter->SetAllowFp16PrecisionForFp32(1);
 
