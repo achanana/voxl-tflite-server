@@ -12,10 +12,7 @@ DEPS="
 libmodal-pipe
 libmodal-json
 voxl-opencv
-voxl-tflite
 "
-
-
 
 print_usage(){
 	echo ""
@@ -64,6 +61,7 @@ if [ "$MODE" == "DEB" ]; then
 	## only pull from voxl-packages to save time
 	sudo apt-get update -o Dir::Etc::sourcelist="sources.list.d/modalai.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"
 
+	DEPS="${DEPS} voxl-tflite:arm64"
 	## install the user's list of dependencies
 	echo "installing: "
 	echo $DEPS
@@ -83,6 +81,8 @@ else
 
 	## make sure we have the latest package index
 	sudo opkg update
+
+	DEPS="${DEPS} voxl-tflite"
 
 	echo "installing: "
 	echo $DEPS
