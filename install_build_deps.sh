@@ -12,13 +12,13 @@ DEPS_QRB5165="
 libmodal-pipe
 libmodal-json
 voxl-opencv
-voxl-tflite"
+qrb5165-tflite"
 
 DEPS_APQ8096="
 libmodal-pipe
 libmodal-json
 voxl-opencv
-voxl-tflite"
+apq8096-tflite"
 
 ## this list is just for tab-completion
 ## it's not an exhaustive list of platforms available.
