@@ -3,7 +3,7 @@ Version: 0.2.0
 Section: base
 Priority: optional
 Architecture: arm64
-Depends: libmodal-pipe,libmodal-json, voxl-opencv, voxl-tflite
+Depends: libmodal-pipe,libmodal-json, voxl-opencv
 Maintainer: modalai.com
 Description: client of voxl-camera-server that does deep learning 
 Conflicts: voxl-mpa-tflite-server
