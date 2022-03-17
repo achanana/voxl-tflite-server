@@ -1,3 +1,12 @@
+0.2.0
+    * major rework, new generic inference helper class
+    * ai detection t type updated (compatible with latest mpa-to-ros)
+    * updated delegates and compatibility with tf2.6.2
+    * removed Midas V2, replaced with fastdepth
+    * added deeplab v3 for semantic segmentation on cityscapes dataset
+    * added efficientnet lite for npu classification on imagenet dataset
+0.1.9
+    * headers and deps updated, now dependent on voxl-tflite >= 2.2.3-1
 0.1.8
     * added midas v2 for monocular depth estimation option
 0.1.7

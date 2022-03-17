@@ -1,24 +1,66 @@
 #!/bin/bash
-# Copyright 2017 The TensorFlow Authors. All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-# ==============================================================================
 
-set -x
-set -e
+## voxl-cross contains the following toolchains
+## first two for apq8096, last for qrb5165
+TOOLCHAIN_APQ8096_32="/opt/cross_toolchain/arm-gnueabi-4.9.toolchain.cmake"
+TOOLCHAIN_APQ8096_64="/opt/cross_toolchain/aarch64-gnu-4.9.toolchain.cmake"
+TOOLCHAIN_QRB5165="/opt/cross_toolchain/aarch64-gnu-7.toolchain.cmake"
 
-mkdir -p build
-cd build
-cmake -DCMAKE_TOOLCHAIN_FILE=/opt/cross_toolchain/aarch64-gnu-4.9.toolchain.cmake -DCMAKE_BUILD_TYPE=RELEASE -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS} -std=c++11 -march=armv8-a" ../server
+# placeholder in case more cmake opts need to be added later
+EXTRA_OPTS=""
 
-make -j 4 TARGET=aarch64 TARGET_TOOLCHAIN_PREFIX=aarch64-linux-gnu-
+## this list is just for tab-completion
+AVAILABLE_PLATFORMS="qrb5165 apq8096 native"
+
+# qrb5165 compiler definition, used for qrb5165 specific tflite usage
+BUILD_QRB5165="ON"
+
+print_usage(){
+	echo ""
+	echo " Build the current project based on platform target."
+	echo ""
+	echo " Usage:"
+	echo ""
+	echo "  ./build.sh apq8096"
+	echo "        Build 64-bit binaries for apq8096"
+	echo ""
+	echo "  ./build.sh qrb5165"
+	echo "        Build 64-bit binaries for qrb5165"
+	echo ""
+	echo "  ./build.sh native"
+	echo "        Build with the native gcc/g++ compilers."
+	echo ""
+	echo ""
+}
+
+
+case "$1" in
+	apq8096)
+		mkdir -p build64
+		cd build64
+        BUILD_QRB5165="OFF"
+		cmake -DCMAKE_TOOLCHAIN_FILE=${TOOLCHAIN_APQ8096_64} -DCMAKE_BUILD_TYPE=RELEASE -DBUILD_QRB5165=${BUILD_QRB5165} -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS} -std=c++11 -march=armv8-a -L  /usr/aarch64-linux-gnu-2.23/lib -I  /usr/aarch64-linux-gnu-2.23/include" ${EXTRA_OPTS} ../
+		make -j$(nproc)
+		cd ../
+		;;
+	qrb5165)
+		mkdir -p build
+		cd build
+		cmake -DCMAKE_TOOLCHAIN_FILE=${TOOLCHAIN_QRB5165} -DCMAKE_BUILD_TYPE=RELEASE -DBUILD_QRB5165=${BUILD_QRB5165} -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS} -std=c++11 -march=armv8-a" ${EXTRA_OPTS} ../
+		make -j$(nproc)
+		cd ../
+		;;
+	native)
+		mkdir -p build
+		cd build
+        BUILD_QRB5165="OFF"
+		cmake ${EXTRA_OPTS} ../
+		make -j$(nproc)
+		cd ../
+		;;
+
+	*)
+		print_usage
+		exit 1
+		;;
+esac
