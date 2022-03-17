@@ -201,11 +201,11 @@ InferenceHelper::InferenceHelper(char* model_file, char* labels_file, DelegateOp
     }
 
     // leaving as single threaded for now
-    #ifdef BUILD_865
+    #ifdef BUILD_QRB5165
     interpreter->SetNumThreads(8);
     #endif
 
-    #ifndef BUILD_865
+    #ifndef BUILD_QRB5165
     interpreter->SetNumThreads(4);
     #endif
     
@@ -216,7 +216,7 @@ InferenceHelper::InferenceHelper(char* model_file, char* labels_file, DelegateOp
     switch(hardware_selection){
 
         case XNNPACK:{
-            #ifdef BUILD_865
+            #ifdef BUILD_QRB5165
             TfLiteXNNPackDelegateOptions xnnpack_options = TfLiteXNNPackDelegateOptionsDefault();
             xnnpack_delegate = TfLiteXNNPackDelegateCreate(&xnnpack_options);
             if (interpreter->ModifyGraphWithDelegate(xnnpack_delegate) != kTfLiteOk) fprintf(stderr, "Failed to apply XNNPACK delegate\n");
@@ -234,10 +234,9 @@ InferenceHelper::InferenceHelper(char* model_file, char* labels_file, DelegateOp
             break;
 
         case NNAPI: {
-            #ifdef BUILD_865
+            #ifdef BUILD_QRB5165
             const auto* nnapi_impl = NnApiImplementation();
             std::string temp = tflite::nnapi::GetStringDeviceNamesList(nnapi_impl);
-            // fprintf(stderr, "device names: %s\n", temp.c_str());
             tflite::StatefulNnApiDelegate::Options nnapi_opts;
             nnapi_opts.execution_preference = tflite::StatefulNnApiDelegate::Options::ExecutionPreference::kSustainedSpeed;
             nnapi_opts.allow_fp16 = true;
@@ -246,10 +245,9 @@ InferenceHelper::InferenceHelper(char* model_file, char* labels_file, DelegateOp
             nnapi_opts.disallow_nnapi_cpu = false;
             nnapi_opts.max_number_delegated_partitions = -1;
             
-            // let nnapi decide what is the best hardware accel to use
-
             // can manually specificy, the HTA/NPU is shown below
-            // nnapi_opts.accelerator_name = "libunifiedhal-driver.so2"; 
+            printf("Manually selecting NPU for nnapi delegation\n");
+            nnapi_opts.accelerator_name = "libunifiedhal-driver.so2"; 
 
             nnapi_delegate = new tflite::StatefulNnApiDelegate(nnapi_opts);            
             if (interpreter->ModifyGraphWithDelegate(nnapi_delegate) != kTfLiteOk) fprintf(stderr, "Failed to apply NNAPI delegate\n");
@@ -613,7 +611,7 @@ void InferenceHelper::print_summary_stats(){
 }
 
 InferenceHelper::~InferenceHelper(){    
-    #ifdef BUILD_865
+    #ifdef BUILD_QRB5165
     free(resize_output);
     if (gpu_delegate) TfLiteGpuDelegateV2Delete(gpu_delegate);
     if (xnnpack_delegate) TfLiteXNNPackDelegateDelete(xnnpack_delegate);

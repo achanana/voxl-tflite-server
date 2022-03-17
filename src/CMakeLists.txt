@@ -2,12 +2,10 @@ cmake_minimum_required(VERSION 3.3)
 
 SET(TARGET voxl-tflite-server)
 
-option(BUILD_820 "Build the 820 binary" ON)
-option(BUILD_865 "Build the 865 binary" OFF)
+option(BUILD_QRB5165 "Build the qrb5165 binary" OFF)
 
-if(BUILD_865)
-    add_definitions(-DBUILD_865)
-    set(BUILD_820 OFF)
+if(BUILD_QRB5165)
+    add_definitions(-DBUILD_QRB5165)
 endif()
 
 # Build from all source files
@@ -21,11 +19,11 @@ include_directories(
     ../include
     /usr/include/opencv4/
 
-    # 820 SPECIFIC
+    # apq8096 SPECIFIC
     /usr/include/tensorflow/lite/tools/make/downloads/absl/
     /usr/include/tensorflow/lite/tools/make/downloads/flatbuffers/include/
 
-    # 865 SPECIFIC
+    # qrb5165 SPECIFIC
     /usr/include/flatbuffers/include/
     /usr/include/abseil-cpp/
     /usr/include/ruy/
@@ -73,7 +71,7 @@ set(ABSL_LIBS
     "absl_wyhash"
 )
 
-if (BUILD_865)
+if (BUILD_QRB5165)
 set(LINK_LIBS
     "tensorflow-lite"
     ${ABSL_LIBS}
@@ -87,7 +85,35 @@ set(LINK_LIBS
     "clog"
     "fft2d_fftsg2d"
     "fft2d_fftsg"
-    "ruy"
+    "ruy_allocator"
+    "ruy_apply_multiplier"
+    "ruy_block_map"
+    "ruy_blocking_counter"
+    "ruy_context"
+    "ruy_context_get_ctx"
+    "ruy_cpuinfo"
+    "ruy_ctx"
+    "ruy_denormal"
+    "ruy_frontend"
+    "ruy_have_built_path_for_avx"
+    "ruy_have_built_path_for_avx2_fma"
+    "ruy_have_built_path_for_avx512"
+    "ruy_kernel_arm"
+    "ruy_kernel_avx"
+    "ruy_kernel_avx2_fma"
+    "ruy_kernel_avx512"
+    "ruy_pack_arm"
+    "ruy_pack_avx"
+    "ruy_pack_avx2_fma"
+    "ruy_pack_avx512"
+    "ruy_prepacked_cache"
+    "ruy_prepare_packed_matrices"
+    "ruy_profiler_instrumentation"
+    "ruy_system_aligned_alloc"
+    "ruy_thread_pool"
+    "ruy_trmul"
+    "ruy_tune"
+    "ruy_wait"
     "glib-2.0"
     "dl"
     "stdc++"

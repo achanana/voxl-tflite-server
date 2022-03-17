@@ -16,7 +16,7 @@
 #include "tensorflow/lite/optional_debug_tools.h"
 #include "tensorflow/lite/string_util.h"
 
-#ifdef BUILD_865
+#ifdef BUILD_QRB5165
 #include "tensorflow/lite/delegates/xnnpack/xnnpack_delegate.h"
 #include "tensorflow/lite/delegates/nnapi/nnapi_delegate.h"
 #include "tensorflow/lite/nnapi/nnapi_util.h"
@@ -86,7 +86,7 @@ class InferenceHelper
         // delegate ptrs
         DelegateOpt hardware_selection;
         TfLiteDelegate* gpu_delegate;
-        #ifdef BUILD_865
+        #ifdef BUILD_QRB5165
         TfLiteDelegate* xnnpack_delegate;
         tflite::StatefulNnApiDelegate* nnapi_delegate;
         #endif

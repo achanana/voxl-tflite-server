@@ -40,7 +40,7 @@
 #define CHAR_BUF_SIZE 128
 #define CONFIG_FILE "/etc/modalai/voxl-tflite-server.conf"
 
-#ifdef BUILD_865
+#ifdef BUILD_QRB5165
 #define CONFIG_FILE_HEADER "\
 /**\n\
  * This file contains configuration that's specific to voxl-tflite-server.\n\
@@ -58,7 +58,7 @@
  */\n"
 #endif
 
-#ifndef BUILD_865
+#ifndef BUILD_QRB5165
 #define CONFIG_FILE_HEADER "\
 /**\n\
  * This file contains configuration that's specific to voxl-tflite-server.\n\

@@ -2,7 +2,7 @@ Package: voxl-tflite-server
 Version: 0.2.0
 Section: base
 Priority: optional
-Architecture: all
+Architecture: arm64
 Depends: libmodal-pipe,libmodal-json, voxl-opencv, voxl-tflite
 Maintainer: modalai.com
 Description: client of voxl-camera-server that does deep learning 

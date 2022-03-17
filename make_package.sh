@@ -1,40 +1,24 @@
-#!/bin/bash
-################################################################################
-# Copyright (c) 2022 ModalAI, Inc. All rights reserved.
-#
-# Semi-universal script for making a deb and ipk package. This is shared
-# between the vast majority of VOXL-SDK packages
-#
-# Add the 'timestamp' argument to add a date-timestamp suffix to the deb package
-# version. This is used by CI for making nightly and development builds.
-#
-# author: james@modalai.com
-################################################################################
-
-set -e # exit on error to prevent bad ipk from being generated
-
-################################################################################
-# Check arguments
-################################################################################
 
 USETIMESTAMP=false
-MAKE_DEB=false
+MAKE_DEB=true
 MAKE_IPK=false
 
 print_usage(){
 	echo ""
 	echo " Package the current project into a deb or ipk package."
 	echo " You must run build.sh first to build the binaries"
+	echo " if no arguments are given it builds a deb"
 	echo ""
 	echo " Usage:"
+	echo "  ./make_package.sh"
+	echo "  ./make_package.sh deb"
+	echo "        Build a DEB package"
 	echo ""
 	echo "  ./make_package.sh ipk"
-	echo "        Build an IPK package for 820"
+	echo "        Build an IPK package"
 	echo ""
-	echo "  ./make_package.sh deb"
-	echo "        Build a DEB package for 865"
-	echo ""
-	echo "  ./make_package.sh 865 timestamp"
+	echo "  ./make_package.sh timestamp"
+	echo "  ./make_package.sh deb timestamp"
 	echo "        Build a DEB package with the current timestamp as a"
 	echo "        suffix in both the package name and deb filename."
 	echo "        This is used by CI for development packages."
@@ -53,19 +37,17 @@ process_argument () {
 	arg=$(echo "$1" | tr '[:upper:]' '[:lower:]')
 	case ${arg} in
 		"")
-			#echo "Making Normal Package"
 			;;
 		"-t"|"timestamp"|"--timestamp")
 			echo "using timestamp suffix"
 			USETIMESTAMP=true
 			;;
 		"-d"|"deb"|"debian"|"--deb"|"--debian")
-			echo "using timestamp suffix"
 			MAKE_DEB=true
 			;;
 		"-i"|"ipk"|"opkg"|"--ipk"|"--opkg")
-			echo "using timestamp suffix"
 			MAKE_IPK=true
+			MAKE_DEB=false
 			;;
 		*)
 			echo "invalid option"
@@ -82,19 +64,13 @@ do
 done
 
 
-if [ $MAKE_DEB == false ] && [ $MAKE_IPK == false ]; then
-	echo "please specify \"deb\" or \"ipk\" argument to specify what package to build"
-	print_usage
-	exit 1
-fi
-
 ################################################################################
 # variables
 ################################################################################
 VERSION=$(cat pkg/control/control | grep "Version" | cut -d' ' -f 2)
 PACKAGE=$(cat pkg/control/control | grep "Package" | cut -d' ' -f 2)
 IPK_NAME=${PACKAGE}_${VERSION}.ipk
-DEB_NAME=${PACKAGE}_${VERSION}.deb
+
 
 DATA_DIR=pkg/data
 CONTROL_DIR=pkg/control
@@ -142,7 +118,7 @@ if [[ -d "build64" ]]; then
 fi
 
 # make sure at least one directory worked
-if [ "$DID_BUILD" = false ] && ! [ -f "build.sh" ]; then
+if [ "$DID_BUILD" = false ] && [ -f "build.sh" ]; then
 	echo "neither build/ build32/ or build64/ were found"
 	exit 1
 fi
@@ -161,10 +137,10 @@ if [ -d "scripts" ]; then
 	sudo mkdir -p $DATA_DIR/usr/bin/
 	sudo chmod +x scripts/*/*
 	if [ $MAKE_DEB == false ]; then
-		sudo cp scripts/820/* $DATA_DIR/usr/bin/
+		sudo cp scripts/apq8096/* $DATA_DIR/usr/bin/
 	fi
 	if [ $MAKE_IPK == false ]; then
-		sudo cp scripts/865/* $DATA_DIR/usr/bin/
+		sudo cp scripts/qrb5165/* $DATA_DIR/usr/bin/
 	fi
 fi
 
@@ -239,12 +215,12 @@ if $MAKE_DEB; then
 		dts=$(date +"%Y%m%d%H%M")
 		sed -E -i "s/Version.*/&-$dts/" $DEB_DIR/DEBIAN/control
 		VERSION="${VERSION}-${dts}"
-		DEB_NAME=${PACKAGE}_${VERSION}.deb
 		echo "new version with timestamp: $VERSION"
 	fi
 
-
+	DEB_NAME=${PACKAGE}_${VERSION}_arm64.deb
 	dpkg-deb --build ${DEB_DIR} ${DEB_NAME}
+
 fi
 
 echo "DONE"
