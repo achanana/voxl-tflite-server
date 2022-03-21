@@ -611,8 +611,9 @@ void InferenceHelper::print_summary_stats(){
 }
 
 InferenceHelper::~InferenceHelper(){    
-    #ifdef BUILD_QRB5165
     free(resize_output);
+
+    #ifdef BUILD_QRB5165
     if (gpu_delegate) TfLiteGpuDelegateV2Delete(gpu_delegate);
     if (xnnpack_delegate) TfLiteXNNPackDelegateDelete(xnnpack_delegate);
     if (nnapi_delegate) delete(nnapi_delegate);

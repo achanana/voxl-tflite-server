@@ -46,8 +46,8 @@ print_usage(){
 	echo "  ./install_build_deps.sh apq8096 dev"
 	echo "        Install from apq8096 development repo."
 	echo ""
-	echo "  ./install_build_deps.sh apq8096 stable"
-	echo "        Install from apq8096 stable repo."
+	echo "  ./install_build_deps.sh apq8096 staging"
+	echo "        Install from apq8096 staging repo."
 	echo ""
 	echo ""
 	echo " These examples are not an exhaustive list."
@@ -96,8 +96,14 @@ else
 	# delete any existing repository entries
 	sudo sed -i '/voxl-packages.modalai.com/d' ${OPKG_CONF}
 
+	# add arm64 architecture if necessary
+	if ! grep -q "arch arm64" "${OPKG_CONF}"; then
+		echo "adding arm64 to opkg conf"
+		sudo echo "arch arm64 7" >> ${OPKG_CONF}
+	fi
+
 	# write in the new entry
-	LINE="src/gz ${SECTION} http://voxl-packages.modalai.com/${SECTION}"
+	LINE="src/gz ${SECTION} http://voxl-packages.modalai.com/dists/$PLATFORM/${SECTION}/binary-arm64/"
 	sudo echo "$LINE" >> ${OPKG_CONF}
 	sudo echo "" >> ${OPKG_CONF}
 
