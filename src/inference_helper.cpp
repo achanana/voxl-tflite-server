@@ -289,7 +289,19 @@ bool InferenceHelper::preprocess_image(camera_image_metadata_t &meta, char* fram
     }
     // if color input provided, make sure that is reflected in output image
     switch (meta.format){
-        case IMAGE_FORMAT_NV12:
+        case IMAGE_FORMAT_NV12:{
+            cv::Mat yuv(input_height+input_height/2, input_width, CV_8UC1, (uchar*)frame);
+            cv::cvtColor(yuv, output_image, CV_YUV2RGB_NV12);
+            mcv_resize_8uc3_image(output_image.data, resize_output, &map);
+            cv::Mat holder(model_height, model_width, CV_8UC3, (uchar*)resize_output);
+
+            preprocessed_image = holder;
+            meta.format = IMAGE_FORMAT_RGB;
+            meta.size_bytes     = (meta.height * meta.width * 3);
+            meta.stride         = (meta.width * 3);
+        }
+            break;
+
         case IMAGE_FORMAT_NV21:{
             cv::Mat yuv(input_height+input_height/2, input_width, CV_8UC1, (uchar*)frame);
             cv::cvtColor(yuv, output_image, CV_YUV2RGB_NV21);
