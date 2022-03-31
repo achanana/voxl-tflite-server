@@ -64,7 +64,7 @@ bool do_normalize = true;
 
 InferenceHelper* inf_helper;
 
-enum PostProcessType { OBJECT_DETECT, MONO_DEPTH, SEGMENTATION, CLASSIFICATION };
+enum PostProcessType { OBJECT_DETECT, MONO_DEPTH, SEGMENTATION, CLASSIFICATION, POSENET };
 PostProcessType post_type;
 
 
@@ -189,6 +189,10 @@ static void* inference_worker(void* data)
             if (!inf_helper->postprocess_classification(new_frame->metadata, output_image)) continue;
             pipe_server_write_camera_frame(IMAGE_CH, new_frame->metadata, (char*)output_image.data);
         }
+        else if (post_type == POSENET){
+            if (!inf_helper->postprocess_posenet(new_frame->metadata, output_image)) continue;
+            pipe_server_write_camera_frame(IMAGE_CH, new_frame->metadata, (char*)output_image.data);
+        }
     }
     return NULL;
 }
@@ -304,6 +308,10 @@ int main(int argc, char *argv[])
         post_type = CLASSIFICATION;
         do_normalize = false;
         labels_in_use = imagenet_labels;
+    }
+    else if (!strcmp(model, "/usr/bin/dnn/lite-model_movenet_singlepose_lightning_tflite_float16_4.tflite")){
+        post_type  = POSENET;
+        do_normalize = false;
     }
     else{
         fprintf(stderr, "WARNING: Unknown model type provided! Defaulting post-process to object detection.\n");
