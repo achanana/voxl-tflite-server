@@ -89,51 +89,51 @@ static bool _parse_opts(int argc, char* argv[])
     };
 
     while (1){
-		int option_index = 0;
-		int c = getopt_long(argc, argv, "cdtph", long_options, &option_index);
+        int option_index = 0;
+        int c = getopt_long(argc, argv, "cdtph", long_options, &option_index);
 
-		if (c == -1) break; // Detect the end of the options.
+        if (c == -1) break; // Detect the end of the options.
 
-		switch (c){
-		case 0:
-			// for long args without short equivalent that just set a flag
+        switch (c){
+        case 0:
+            // for long args without short equivalent that just set a flag
             // nothing left to do so just break.
-			if (long_options[option_index].flag != 0) break;
-			break;
+            if (long_options[option_index].flag != 0) break;
+            break;
 
-		case 'c':
-			config_file_read();
+        case 'c':
+            config_file_read();
             exit(0);
 
-		case 'd':
-			printf("Enabling debug mode\n");
-			en_debug = true;
-			break;
+        case 'd':
+            printf("Enabling debug mode\n");
+            en_debug = true;
+            break;
 
         case 't':
-			printf("Enabling timing mode\n");
-			en_timing = true;
-			break;
+            printf("Enabling timing mode\n");
+            en_timing = true;
+            break;
 
-		case 'h':
-			_print_usage();
-			return true;
+        case 'h':
+            _print_usage();
+            return true;
 
-		default:
-			// Print the usage if there is an incorrect command line option
-			_print_usage();
-			return true;
-		}
-	}
-	return false;
+        default:
+            // Print the usage if there is an incorrect command line option
+            _print_usage();
+            return true;
+        }
+    }
+    return false;
 }
 
 // timing helper
 uint64_t rc_nanos_monotonic_time()
 {
-	struct timespec ts;
-	clock_gettime(CLOCK_MONOTONIC, &ts);
-	return ((uint64_t)ts.tv_sec*1000000000)+ts.tv_nsec;
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ((uint64_t)ts.tv_sec*1000000000)+ts.tv_nsec;
 }
 
 static void* inference_worker(void* data)
@@ -208,15 +208,15 @@ static void _camera_disconnect_cb(__attribute__((unused)) int ch, __attribute__(
 static void _camera_helper_cb(__attribute__((unused))int ch, camera_image_metadata_t meta, char* frame, void* context){
     static int n_skipped = 0;
     if (n_skipped < skip_n_frames){
-		n_skipped++;
-		return;
-	}
+        n_skipped++;
+        return;
+    }
     else n_skipped = 0;
 
     if (pipe_client_bytes_in_pipe(ch)>0){
         n_skipped++;
-		if(en_debug) fprintf(stderr, "WARNING, skipping frame on channel %d due to frame backup\n", ch);
-		return;
+        if(en_debug) fprintf(stderr, "WARNING, skipping frame on channel %d due to frame backup\n", ch);
+        return;
     }
     if (!en_debug && !en_timing){
         if (!pipe_server_get_num_clients(IMAGE_CH) && !pipe_server_get_num_clients(DETECTION_CH))
@@ -244,46 +244,48 @@ static void _camera_helper_cb(__attribute__((unused))int ch, camera_image_metada
 int main(int argc, char *argv[])
 {
     if (_parse_opts(argc, argv)){
-		return -1;
-	}
+        return -1;
+    }
 
     ////////////////////////////////////////////////////////////////////////////////
-	// gracefully handle an existing instance of the process and associated PID file
-	////////////////////////////////////////////////////////////////////////////////
+    // load config, need to do before checking for other instances 
+    ////////////////////////////////////////////////////////////////////////////////
+    if(config_file_read()){
+        return -1;
+    }
+    config_file_print();
 
-    // make sure another instance isn't running
-	// if return value is -3 then a background process is running with
-	// higher privaledges and we couldn't kill it, in which case we should
-	// not continue or there may be hardware conflicts. If it returned -4
-	// then there was an invalid argument that needs to be fixed.
-    if(kill_existing_process(PROCESS_NAME, 2.0)<-2) return -1;
+    if (!allow_multiple){
+        ////////////////////////////////////////////////////////////////////////////////
+        // gracefully handle an existing instance of the process and associated PID file
+        ////////////////////////////////////////////////////////////////////////////////
 
-    // start signal handler so we can exit cleanly
-	if(enable_signal_handler()==-1){
-		fprintf(stderr,"ERROR: failed to start signal handler\n");
-		return(-1);
-	}
+        // make sure another instance isn't running
+        // if return value is -3 then a background process is running with
+        // higher privaledges and we couldn't kill it, in which case we should
+        // not continue or there may be hardware conflicts. If it returned -4
+        // then there was an invalid argument that needs to be fixed.
+        if(kill_existing_process(PROCESS_NAME, 2.0)<-2) return -1;
 
-    // make PID file to indicate your project is running
-	// due to the check made on the call to rc_kill_existing_process() above
-	// we can be fairly confident there is no PID file already and we can
-	// make our own safely.
-	make_pid_file(PROCESS_NAME);
+        // start signal handler so we can exit cleanly
+        if(enable_signal_handler()==-1){
+            fprintf(stderr,"ERROR: failed to start signal handler\n");
+            return(-1);
+        }
+
+        // make PID file to indicate your project is running
+        // due to the check made on the call to rc_kill_existing_process() above
+        // we can be fairly confident there is no PID file already and we can
+        // make our own safely.
+        make_pid_file(PROCESS_NAME);
+    }
 
     // disable garbage multithreading
     cv::setNumThreads(1);
 
     ////////////////////////////////////////////////////////////////////////////////
-	// load config
-	////////////////////////////////////////////////////////////////////////////////
-	if(config_file_read()){
-		return -1;
-	}
-	config_file_print();
-
+    // initialize InferenceHelper
     ////////////////////////////////////////////////////////////////////////////////
-	// initialize InferenceHelper
-	////////////////////////////////////////////////////////////////////////////////
     DelegateOpt opt_ = GPU;     // default for MAI models
     if (!strcmp(delegate, "cpu")) opt_ = XNNPACK;
     else if (!strcmp(delegate, "nnapi")) opt_ = NNAPI;
@@ -351,11 +353,45 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    // open our output pipes
-    pipe_info_t image_pipe = {"tflite", TFLITE_IMAGE_PATH, "camera_image_metadata_t", PROCESS_NAME, 16*1024*1024, 0};
-    pipe_server_create(IMAGE_CH, image_pipe, 0);
-    pipe_info_t detection_pipe = {"tflite_data", TFLITE_DETECTION_PATH, "ai_detection_t", PROCESS_NAME, 16*1024, 0};
-    pipe_server_create(DETECTION_CH, detection_pipe, 0);
+    if (!allow_multiple){
+        // open our output pipes using default names
+        pipe_info_t image_pipe = {"tflite", TFLITE_IMAGE_PATH, "camera_image_metadata_t", PROCESS_NAME, 16*1024*1024, 0};
+        pipe_server_create(IMAGE_CH, image_pipe, 0);
+        if (post_type == OBJECT_DETECT){
+            pipe_info_t detection_pipe = {"tflite_data", TFLITE_DETECTION_PATH, "ai_detection_t", PROCESS_NAME, 16*1024, 0};
+            pipe_server_create(DETECTION_CH, detection_pipe, 0);
+        }
+    }
+    else {
+        // set up a string to hold our custom pipe name
+        std::string output_pipe_holder = MODAL_PIPE_DEFAULT_BASE_DIR;
+        output_pipe_holder.append(output_pipe_prefix);
+        output_pipe_holder.append("_tflite");
+        
+        // get c ptr to string
+        const char* buf_ptr = output_pipe_holder.c_str();
+
+        // create our output pipe
+        pipe_info_t image_pipe = {"tflite", "unknown", "camera_image_metadata_t", PROCESS_NAME, 16*1024*1024, 0};
+        // set the location to our new strings ptr
+        memcpy( image_pipe.location, buf_ptr, MODAL_PIPE_MAX_NAME_LEN);
+        // create the server pipe
+        pipe_server_create(IMAGE_CH, image_pipe, 0);
+
+        if (post_type == OBJECT_DETECT){
+            // initialize the detection pipe only if we are running a detection model
+            pipe_info_t detection_pipe = {"tflite_data", "unknown", "ai_detection_t", PROCESS_NAME, 16*1024, 0};
+            output_pipe_holder = MODAL_PIPE_DEFAULT_BASE_DIR;
+            output_pipe_holder.append(output_pipe_prefix);
+            output_pipe_holder.append("_tflite_data");
+
+            buf_ptr = output_pipe_holder.c_str();
+
+            memcpy( detection_pipe.location, buf_ptr, MODAL_PIPE_MAX_NAME_LEN);
+
+            pipe_server_create(DETECTION_CH, detection_pipe, 0);
+        }
+    }
 
     while(main_running){
         usleep(5000000);

@@ -44,7 +44,7 @@ extern "C" {
 
 // struct containing all relevant metadata to a tflite object detection
 typedef struct ai_detection_t {
-	uint32_t magic_number;
+    uint32_t magic_number;
     int64_t timestamp_ns;
     uint32_t class_id;
     int32_t  frame_id;

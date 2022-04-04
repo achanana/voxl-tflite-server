@@ -167,9 +167,9 @@ TfLiteStatus ReadLabelsFile(char* file_name, std::vector<std::string>* result, s
 // timing helper
 static uint64_t rc_nanos_monotonic_time()
 {
-	struct timespec ts;
-	clock_gettime(CLOCK_MONOTONIC, &ts);
-	return ((uint64_t)ts.tv_sec*1000000000)+ts.tv_nsec;
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ((uint64_t)ts.tv_sec*1000000000)+ts.tv_nsec;
 }
 
 InferenceHelper::InferenceHelper(char* model_file, char* labels_file, DelegateOpt delegate_choice, bool _en_debug, bool _en_timing, bool _do_normalize)
@@ -315,6 +315,7 @@ bool InferenceHelper::preprocess_image(camera_image_metadata_t &meta, char* fram
         }
             break;
 
+        case IMAGE_FORMAT_STEREO_RAW8:
         case IMAGE_FORMAT_RAW8: {
             output_image = cv::Mat(input_height, input_width, CV_8UC1, (uchar*)frame);
 
