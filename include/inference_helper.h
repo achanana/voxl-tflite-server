@@ -60,6 +60,7 @@ class InferenceHelper
         bool postprocess_mono_depth(camera_image_metadata_t &meta, cv::Mat &output_image);
         bool postprocess_segmentation(camera_image_metadata_t &meta, cv::Mat &output_image);
         bool postprocess_classification(camera_image_metadata_t &meta, cv::Mat &output_image);
+        bool postprocess_posenet(camera_image_metadata_t &meta, cv::Mat &output_image);
 
         // summary timing stats
         void print_summary_stats();

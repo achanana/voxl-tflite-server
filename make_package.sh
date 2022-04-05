@@ -150,13 +150,12 @@ if [ -d "bash_completions" ]; then
 fi
 
 if [ -d "misc_files" ]; then
-	sudo cp -R misc_files/* $DATA_DIR/	
 	if [ $MAKE_DEB == false ]; then
-		rm $DATA_DIR/usr/bin/dnn/cityscapes_labels.txt
-		rm $DATA_DIR/usr/bin/dnn/edgetpu_deeplab_321_os32_float16_quant.tflite
-		rm $DATA_DIR/usr/bin/dnn/fastdepth_float16_quant.tflite
-		rm $DATA_DIR/usr/bin/dnn/lite-model_efficientnet_lite4_uint8_2.tflite
-		rm $DATA_DIR/usr/bin/dnn/imagenet_labels.txt
+		sudo mkdir -p $DATA_DIR/usr/bin/dnn/
+		sudo cp misc_files/usr/bin/dnn/coco_labels.txt misc_files/usr/bin/dnn/ssdlite_mobilenet_v2_coco.tflite $DATA_DIR/usr/bin/dnn/
+	fi
+	if [ $MAKE_IPK == false ]; then
+		sudo cp -R misc_files/* $DATA_DIR/	
 	fi
 fi
 

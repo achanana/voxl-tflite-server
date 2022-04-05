@@ -10,17 +10,17 @@ extern "C" {
 
 // undistort_map_t points to a big array of these, 1 per pixel
 typedef struct bilinear_lookup_t{
-	int16_t		I[2]; // backwards map to top left corner of 2x2 square
-	uint8_t		F[4]; // 4 coefficients for 4 corners of square
+    int16_t		I[2]; // backwards map to top left corner of 2x2 square
+    uint8_t		F[4]; // 4 coefficients for 4 corners of square
 } bilinear_lookup_t;
 
 
 typedef struct undistort_map_t{
-	int w_in;			    // input image width
-	int h_in;			    // input image height
+    int w_in;			    // input image width
+    int h_in;			    // input image height
     int w_out;              // output image width
     int h_out;              // output image height
-	bilinear_lookup_t* L;   // lookup table
+    bilinear_lookup_t* L;   // lookup table
 } undistort_map_t;
 
 // takes the input and output dimensions and generates a lookup table

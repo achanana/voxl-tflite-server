@@ -1,3 +1,10 @@
+0.2.2
+    * New CI Stuff
+0.2.1
+    * nv21/12 unique handling
+    * posenet model + support
+    * multiple instance support via config def
+    * raw8 stereo handling, will use left frame of pair
 0.2.0
     * major rework, new generic inference helper class
     * ai detection t type updated (compatible with latest mpa-to-ros)
