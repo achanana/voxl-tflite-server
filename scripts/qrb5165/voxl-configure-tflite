@@ -206,40 +206,44 @@ disable )
 done
 
 echo ""
-echo -e "do you want to run the tflite server with:\n (1) Mobilenet + Hires camera\n (2) Mobilenet + Tracking camera\n (3) FastDepth + Hires camera\n (4) FastDepth + Tracking camera\n (5) Deeplab + Hires camera\n (6) Deeplab + Tracking camera\n (7) EfficientNet + Hires camera\n (8) EfficientNet + Tracking camera\n"
-select opt in "1" "2" "3" "4" "5" "6" "7" "8"; do
+echo -e "Select a model to use with the tflite-server:\n (1) Mobilenet - object detection\n (2) FastDepth - monocular depth estimation\n (3) Deeplab - cityscapes segmentation\n (4) EfficientNet - image classification\n (5) Posenet - pose estimation\n"
+select opt in "1" "2" "3" "4" "5"; do
 case $opt in
 1 )
 	set_param_string model "/usr/bin/dnn/ssdlite_mobilenet_v2_coco.tflite"
+	break;;
+2 )
+	set_param_string model "/usr/bin/dnn/fastdepth_float16_quant.tflite"
+	break;;
+3 )
+	set_param_string model "/usr/bin/dnn/edgetpu_deeplab_321_os32_float16_quant.tflite"
+	break;;
+4 )
+	set_param_string model "/usr/bin/dnn/lite-model_efficientnet_lite4_uint8_2.tflite"
+	break;;
+5 )
+	set_param_string model "/usr/bin/dnn/lite-model_movenet_singlepose_lightning_tflite_float16_4.tflite"
+	break;;
+*)
+	echo "invalid option"
+	esac
+done
+
+echo ""
+echo -e "Select an image sensor to use with the tflite-server:\n (1) Hires\n (2) Tracking\n (3) Front Stereo (left cam only)\n (4) Rear Stereo (left cam only)\n"
+select opt in "1" "2" "3" "4"; do
+case $opt in
+1 )
     set_param_string input_pipe "/run/mpa/hires/"
 	break;;
 2 )
-	set_param_string model "/usr/bin/dnn/ssdlite_mobilenet_v2_coco.tflite"
     set_param_string input_pipe "/run/mpa/tracking/"
 	break;;
 3 )
-	set_param_string model "/usr/bin/dnn/fastdepth_float16_quant.tflite"
-    set_param_string input_pipe "/run/mpa/hires/"
+    set_param_string input_pipe "/run/mpa/stereo_front/"
 	break;;
 4 )
-	set_param_string model "/usr/bin/dnn/fastdepth_float16_quant.tflite"
-    set_param_string input_pipe "/run/mpa/tracking/"
-	break;;
-5 )
-	set_param_string model "/usr/bin/dnn/edgetpu_deeplab_321_os32_float16_quant.tflite"
-    set_param_string input_pipe "/run/mpa/hires/"
-	break;;
-6 )
-	set_param_string model "/usr/bin/dnn/edgetpu_deeplab_321_os32_float16_quant.tflite"
-    set_param_string input_pipe "/run/mpa/tracking/"
-	break;;
-7 )
-	set_param_string model "/usr/bin/dnn/lite-model_efficientnet_lite4_uint8_2.tflite"
-    set_param_string input_pipe "/run/mpa/hires/"
-	break;;
-8 )
-	set_param_string model "/usr/bin/dnn/lite-model_efficientnet_lite4_uint8_2.tflite"
-    set_param_string input_pipe "/run/mpa/tracking/"
+    set_param_string input_pipe "/run/mpa/stereo_rear/"
 	break;;
 *)
 	echo "invalid option"

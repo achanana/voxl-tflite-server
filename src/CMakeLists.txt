@@ -72,6 +72,7 @@ set(ABSL_LIBS
 )
 
 if (BUILD_QRB5165)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-implicit-fallthrough")
 set(LINK_LIBS
     "tensorflow-lite"
     ${ABSL_LIBS}

@@ -1,3 +1,7 @@
+0.2.4
+    * voxl-configure-tflite for qrb5165 cleaned up, added posenet and stereo options
+    * cmake fallthrough warning cleared
+    * stereo case updated to ensure only left image is used and sent from pair
 0.2.3
     * fresh ci release
 0.2.2

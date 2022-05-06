@@ -316,6 +316,7 @@ bool InferenceHelper::preprocess_image(camera_image_metadata_t &meta, char* fram
             break;
 
         case IMAGE_FORMAT_STEREO_RAW8:
+            meta.format = IMAGE_FORMAT_RAW8;
         case IMAGE_FORMAT_RAW8: {
             output_image = cv::Mat(input_height, input_width, CV_8UC1, (uchar*)frame);
 
