@@ -57,14 +57,15 @@
 char* coco_labels  = (char*)"/usr/bin/dnn/coco_labels.txt";
 char* city_labels  = (char*)"/usr/bin/dnn/cityscapes_labels.txt";
 char* imagenet_labels  = (char*)"/usr/bin/dnn/imagenet_labels.txt";
+char* yolo_labels  = (char*)"/usr/bin/dnn/yolov5_labels.txt";
 
 bool en_debug = false;
 bool en_timing = false;
-bool do_normalize = true;
+NormalizationType do_normalize = NONE;
 
 InferenceHelper* inf_helper;
 
-enum PostProcessType { OBJECT_DETECT, MONO_DEPTH, SEGMENTATION, CLASSIFICATION, POSENET };
+enum PostProcessType { OBJECT_DETECT, MONO_DEPTH, SEGMENTATION, CLASSIFICATION, POSENET, YOLO };
 PostProcessType post_type;
 
 
@@ -174,23 +175,39 @@ static void* inference_worker(void* data)
                 for (unsigned int i = 0; i < detections.size(); i++){
                     pipe_server_write(DETECTION_CH, (char*)&detections[i], sizeof(ai_detection_t));
                 }
-            } 
+            }
+            new_frame->metadata.timestamp_ns = rc_nanos_monotonic_time();
             pipe_server_write_camera_frame(IMAGE_CH, new_frame->metadata, (char*)output_image.data);
         }
         else if (post_type == MONO_DEPTH){
             if (!inf_helper->postprocess_mono_depth(new_frame->metadata, output_image)) continue;
+            new_frame->metadata.timestamp_ns = rc_nanos_monotonic_time();
             pipe_server_write_camera_frame(IMAGE_CH, new_frame->metadata, (char*)output_image.data);
         }
         else if (post_type == SEGMENTATION){
             if (!inf_helper->postprocess_segmentation(new_frame->metadata, output_image)) continue;
+            new_frame->metadata.timestamp_ns = rc_nanos_monotonic_time();
             pipe_server_write_camera_frame(IMAGE_CH, new_frame->metadata, (char*)output_image.data);
         }
         else if (post_type == CLASSIFICATION){
-            if (!inf_helper->postprocess_classification(new_frame->metadata, output_image)) continue;
+            if (!inf_helper->postprocess_classification(output_image)) continue;
+            new_frame->metadata.timestamp_ns = rc_nanos_monotonic_time();
             pipe_server_write_camera_frame(IMAGE_CH, new_frame->metadata, (char*)output_image.data);
         }
         else if (post_type == POSENET){
-            if (!inf_helper->postprocess_posenet(new_frame->metadata, output_image)) continue;
+            if (!inf_helper->postprocess_posenet(output_image)) continue;
+            new_frame->metadata.timestamp_ns = rc_nanos_monotonic_time();
+            pipe_server_write_camera_frame(IMAGE_CH, new_frame->metadata, (char*)output_image.data);
+        }
+        else if (post_type == YOLO){
+            std::vector<ai_detection_t> detections;
+            if (!inf_helper->postprocess_yolov5(output_image, detections)) continue;
+            if (!detections.empty()){
+                for (unsigned int i = 0; i < detections.size(); i++){
+                    pipe_server_write(DETECTION_CH, (char*)&detections[i], sizeof(ai_detection_t));
+                }
+            }
+            new_frame->metadata.timestamp_ns = rc_nanos_monotonic_time();
             pipe_server_write_camera_frame(IMAGE_CH, new_frame->metadata, (char*)output_image.data);
         }
     }
@@ -294,26 +311,30 @@ int main(int argc, char *argv[])
     // set postprocess type
     if (!strcmp(model, "/usr/bin/dnn/ssdlite_mobilenet_v2_coco.tflite")){
         post_type = OBJECT_DETECT;
+        do_normalize = PIXEL_MEAN; // funky for mobilenet, doesn't like hard division
     } 
     else if (!strcmp(model, "/usr/bin/dnn/fastdepth_float16_quant.tflite")){
         post_type = MONO_DEPTH;
+        do_normalize = HARD_DIVISION;
     }
     else if (!strcmp(model, "/usr/bin/dnn/edgetpu_deeplab_321_os32_float16_quant.tflite")){
         post_type = SEGMENTATION;
-        // special for deeplab: 
-        // input is NOT expected to be normalized. This is used in the inference function later
-        // set labels to cityscapes file
-        do_normalize = false;
+        do_normalize = NONE;
         labels_in_use = city_labels;
     }
     else if (!strcmp(model, "/usr/bin/dnn/lite-model_efficientnet_lite4_uint8_2.tflite")){
         post_type = CLASSIFICATION;
-        do_normalize = false;
+        do_normalize = PIXEL_MEAN;
         labels_in_use = imagenet_labels;
     }
     else if (!strcmp(model, "/usr/bin/dnn/lite-model_movenet_singlepose_lightning_tflite_float16_4.tflite")){
         post_type  = POSENET;
-        do_normalize = false;
+        do_normalize = NONE;
+    }
+    else if (!strcmp(model, "/usr/bin/dnn/yolov5_float16_quant.tflite")){
+        post_type  = YOLO;
+        do_normalize = HARD_DIVISION;
+        labels_in_use = yolo_labels;
     }
     else{
         fprintf(stderr, "WARNING: Unknown model type provided! Defaulting post-process to object detection.\n");

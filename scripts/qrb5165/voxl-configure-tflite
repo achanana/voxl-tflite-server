@@ -206,8 +206,8 @@ disable )
 done
 
 echo ""
-echo -e "Select a model to use with the tflite-server:\n (1) Mobilenet - object detection\n (2) FastDepth - monocular depth estimation\n (3) Deeplab - cityscapes segmentation\n (4) EfficientNet - image classification\n (5) Posenet - pose estimation\n"
-select opt in "1" "2" "3" "4" "5"; do
+echo -e "Select a model to use with the tflite-server:\n (1) Mobilenet - object detection\n (2) FastDepth - monocular depth estimation\n (3) Deeplab - cityscapes segmentation\n (4) EfficientNet - image classification\n (5) Posenet - pose estimation\n (6) Yolov5 - object detection\n"
+select opt in "1" "2" "3" "4" "5" "6"; do
 case $opt in
 1 )
 	set_param_string model "/usr/bin/dnn/ssdlite_mobilenet_v2_coco.tflite"
@@ -223,6 +223,9 @@ case $opt in
 	break;;
 5 )
 	set_param_string model "/usr/bin/dnn/lite-model_movenet_singlepose_lightning_tflite_float16_4.tflite"
+	break;;
+6 )
+	set_param_string model "/usr/bin/dnn/yolov5_float16_quant.tflite"
 	break;;
 *)
 	echo "invalid option"

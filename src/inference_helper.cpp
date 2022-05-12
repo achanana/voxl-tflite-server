@@ -172,7 +172,7 @@ static uint64_t rc_nanos_monotonic_time()
     return ((uint64_t)ts.tv_sec*1000000000)+ts.tv_nsec;
 }
 
-InferenceHelper::InferenceHelper(char* model_file, char* labels_file, DelegateOpt delegate_choice, bool _en_debug, bool _en_timing, bool _do_normalize)
+InferenceHelper::InferenceHelper(char* model_file, char* labels_file, DelegateOpt delegate_choice, bool _en_debug, bool _en_timing, NormalizationType _do_normalize)
 {
     // set our helper varss
     en_debug = _en_debug;
@@ -200,7 +200,7 @@ InferenceHelper::InferenceHelper(char* model_file, char* labels_file, DelegateOp
         exit(-1);
     }
 
-    // leaving as single threaded for now
+    // setting multi-threaded
     #ifdef BUILD_QRB5165
     interpreter->SetNumThreads(8);
     #endif
@@ -218,6 +218,7 @@ InferenceHelper::InferenceHelper(char* model_file, char* labels_file, DelegateOp
         case XNNPACK:{
             #ifdef BUILD_QRB5165
             TfLiteXNNPackDelegateOptions xnnpack_options = TfLiteXNNPackDelegateOptionsDefault();
+            xnnpack_options.num_threads = 8;
             xnnpack_delegate = TfLiteXNNPackDelegateCreate(&xnnpack_options);
             if (interpreter->ModifyGraphWithDelegate(xnnpack_delegate) != kTfLiteOk) fprintf(stderr, "Failed to apply XNNPACK delegate\n");
             #endif
@@ -340,7 +341,8 @@ bool InferenceHelper::preprocess_image(camera_image_metadata_t &meta, char* fram
     return true;
 }
 
-#define PIXEL_MEAN 127.0f
+#define NORMALIZATION_CONST 255.0f
+#define PIXEL_MEAN_GUESS 127.0f
 
 bool InferenceHelper::run_inference(cv::Mat preprocessed_image){
     start_time = rc_nanos_monotonic_time();
@@ -356,8 +358,10 @@ bool InferenceHelper::run_inference(cv::Mat preprocessed_image){
             for (int row = 0; row < model_height; row++) {
                 const uchar* row_ptr = preprocessed_image.ptr(row);
                 for (int i = 0; i < row_elems; i++) {
-                    if (do_normalize) 
-                        dst[i] = (row_ptr[i] - PIXEL_MEAN) / PIXEL_MEAN;
+                    if (do_normalize == HARD_DIVISION) 
+                        dst[i] = row_ptr[i] / NORMALIZATION_CONST;
+                    else if (do_normalize == PIXEL_MEAN)
+                        dst[i] = (row_ptr[i] - PIXEL_MEAN_GUESS) / PIXEL_MEAN_GUESS;
                     else 
                         dst[i] = (row_ptr[i]);
                 }
@@ -407,6 +411,21 @@ bool InferenceHelper::run_inference(cv::Mat preprocessed_image){
     return true;
 }
 
+// gets some nice randomly generated colors for ids
+// when grayscale, will be shades of gray
+static cv::Scalar GetColorForId(int32_t id)
+{
+    static constexpr int32_t kMaxNum = 100;
+    static std::vector<cv::Scalar> color_list;
+    if (color_list.empty()) {
+        std::srand(123);
+        for (int32_t i = 0; i < kMaxNum; i++) {
+            color_list.push_back(cv::Scalar(std::rand() % 255, std::rand() % 255, std::rand() % 255));
+        }
+    }
+    return color_list[id % kMaxNum];
+}
+
 bool InferenceHelper::postprocess_object_detect(cv::Mat& output_image, std::vector<ai_detection_t>& detections_vector){
     start_time = rc_nanos_monotonic_time();
     
@@ -449,7 +468,7 @@ bool InferenceHelper::postprocess_object_detect(cv::Mat& output_image, std::vect
             cv::Rect rect(left, top, width, height);
             cv::Point pt(left, top-10);
 
-            cv::rectangle(output_image, rect, cv::Scalar(0), 7);
+            cv::rectangle(output_image, rect, GetColorForId(detected_classes[i]), 2);
             cv::putText(output_image, labels[detected_classes[i]], pt, cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0), 2);
 
             // setup ai detection for this detection
@@ -582,7 +601,7 @@ bool InferenceHelper::postprocess_segmentation(camera_image_metadata_t &meta, cv
     return true;
 }
 
-bool InferenceHelper::postprocess_classification(camera_image_metadata_t &meta, cv::Mat &output_image){
+bool InferenceHelper::postprocess_classification(cv::Mat &output_image){
     start_time = rc_nanos_monotonic_time();
 
     static std::vector<std::string> labels;
@@ -605,7 +624,7 @@ bool InferenceHelper::postprocess_classification(camera_image_metadata_t &meta, 
     int best_class = std::max_element(confidences.begin(),confidences.end()) - confidences.begin();
 
     fprintf(stderr, "class: %s, prob: %d\n", labels[best_class].c_str(), best_prob);
-    cv::putText(output_image, labels[best_class], cv::Point(meta.width/3, 25), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0, 255, 0), 1);
+    cv::putText(output_image, labels[best_class], cv::Point(input_width/3, 25), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0, 255, 0), 1);
 
     if (en_timing) total_postprocess_time += ((rc_nanos_monotonic_time() - start_time)/1000000.);
 
@@ -635,7 +654,7 @@ static const std::vector<std::pair<int32_t, int32_t>> kJointLineList {
     {13, 15},
 };
 
-bool InferenceHelper::postprocess_posenet(camera_image_metadata_t &meta, cv::Mat &output_image){
+bool InferenceHelper::postprocess_posenet(cv::Mat &output_image){
     start_time = rc_nanos_monotonic_time();
 
     static float confidence_threshold = 0.2;
@@ -648,8 +667,8 @@ bool InferenceHelper::postprocess_posenet(camera_image_metadata_t &meta, cv::Mat
     std::vector<float> confidences;
 
     for (int i = 0; i < 17; i++){
-        x_coords.push_back(static_cast<int32_t>(pose_tensor[i * 3 + 1] * meta.width));
-        y_coords.push_back(static_cast<int32_t>(pose_tensor[i * 3] * meta.height));
+        x_coords.push_back(static_cast<int32_t>(pose_tensor[i * 3 + 1] * input_width));
+        y_coords.push_back(static_cast<int32_t>(pose_tensor[i * 3] * input_height));
         confidences.push_back(pose_tensor[i * 3 + 2]);
     }
 
@@ -668,6 +687,171 @@ bool InferenceHelper::postprocess_posenet(camera_image_metadata_t &meta, cv::Mat
             cv::circle(output_image, cv::Point(x_coords[i], y_coords[i]), 4, cv::Scalar( 255, 255, 0 ), cv::FILLED);
         }
     }
+
+    return true;
+}
+
+// straight up stolen from https://github.com/iwatake2222/play_with_tflite/blob/master/pj_tflite_det_yolov5/image_processor/detection_engine.cpp
+static constexpr int32_t kGridScaleList[] = { 8, 16, 32 };
+static constexpr int32_t kGridChannel = 3;
+static constexpr int32_t kNumberOfClass = 80;
+static constexpr int32_t kElementNumOfAnchor = kNumberOfClass + 5;    // x, y, w, h, bbox confidence, [class confidence]
+static constexpr float threshold_box_confidence_   = 0.40;    // not sure if this is too low or high yet
+static constexpr float threshold_class_confidence_ = 0.20;    // not sure if this is too low or high yet
+static constexpr float threshold_nms_iou_ = 0.50;    // not sure if this is too low or high yet
+
+
+typedef struct BoundingBox{
+    int32_t class_id;
+    std::string label;
+    float class_conf;
+    float detection_conf;   // these two are for ai_detection_t
+    float score;            // this is for actually sorting bboxes
+    int32_t x;
+    int32_t y;
+    int32_t w;
+    int32_t h;
+} BoundingBox;
+
+static void GetBoundingBox(const float* data, float scale_x, float  scale_y, int32_t grid_w, int32_t grid_h, std::vector<BoundingBox>& bbox_list)
+{
+    int actual_loops = 0;
+    int n_skipped = 0;
+    int32_t index = 0;
+    for (int32_t grid_y = 0; grid_y < grid_h; grid_y++) {
+        for (int32_t grid_x = 0; grid_x < grid_w; grid_x++) {
+            for (int32_t grid_c = 0; grid_c < kGridChannel; grid_c++) {
+                actual_loops++;
+                float box_confidence = data[index + 4];
+
+                if (box_confidence >= threshold_box_confidence_) {
+                    int32_t class_id = 0;
+                    float confidence = 0;
+                    float confidence_of_class = 0;
+                    for (int32_t class_index = 0; class_index < kNumberOfClass; class_index++) {
+                        confidence_of_class = data[index + 5 + class_index];
+                        if (confidence_of_class > confidence) {
+                            confidence = confidence_of_class;
+                            class_id = class_index;
+                        }
+                    }
+
+                    if (confidence >= threshold_class_confidence_) {
+                        int32_t cx = static_cast<int32_t>((data[index + 0] + 0) * scale_x);     // no need to + grid_x
+                        int32_t cy = static_cast<int32_t>((data[index + 1] + 0) * scale_y);     // no need to + grid_y
+                        int32_t w = static_cast<int32_t>(data[index + 2] * scale_x);            // no need to exp
+                        int32_t h = static_cast<int32_t>(data[index + 3] * scale_y);            // no need to exp
+                        int32_t x = cx - w / 2;
+                        int32_t y = cy - h / 2;
+                        BoundingBox bbox = {class_id, "", confidence_of_class, box_confidence, confidence, x, y, w, h};
+                        bbox_list.push_back(bbox);
+                    }
+                }
+                else n_skipped++;
+                index += kElementNumOfAnchor;
+            }
+        }
+    }
+}
+
+static float CalculateIoU(const BoundingBox& obj0, const BoundingBox& obj1)
+{
+    int32_t interx0 = (std::max)(obj0.x, obj1.x);
+    int32_t intery0 = (std::max)(obj0.y, obj1.y);
+    int32_t interx1 = (std::min)(obj0.x + obj0.w, obj1.x + obj1.w);
+    int32_t intery1 = (std::min)(obj0.y + obj0.h, obj1.y + obj1.h);
+    if (interx1 < interx0 || intery1 < intery0) return 0;
+
+    int32_t area0 = obj0.w * obj0.h;
+    int32_t area1 = obj1.w * obj1.h;
+    int32_t areaInter = (interx1 - interx0) * (intery1 - intery0);
+    int32_t areaSum = area0 + area1 - areaInter;
+
+    return static_cast<float>(areaInter) / areaSum;
+}
+
+static void Nms(std::vector<BoundingBox>& bbox_list, std::vector<BoundingBox>& bbox_nms_list, float threshold_nms_iou, bool check_class_id)
+{
+    std::sort(bbox_list.begin(), bbox_list.end(), [](BoundingBox const& lhs, BoundingBox const& rhs) {
+        if (lhs.score > rhs.score) return true;
+        return false;
+        });
+
+    std::unique_ptr<bool[]> is_merged(new bool[bbox_list.size()]);
+    for (size_t i = 0; i < bbox_list.size(); i++) is_merged[i] = false;
+    for (size_t index_high_score = 0; index_high_score < bbox_list.size(); index_high_score++) {
+        std::vector<BoundingBox> candidates;
+        if (is_merged[index_high_score]) continue;
+        candidates.push_back(bbox_list[index_high_score]);
+        for (size_t index_low_score = index_high_score + 1; index_low_score < bbox_list.size(); index_low_score++) {
+            if (is_merged[index_low_score]) continue;
+            if (check_class_id && bbox_list[index_high_score].class_id != bbox_list[index_low_score].class_id) continue;
+            if (CalculateIoU(bbox_list[index_high_score], bbox_list[index_low_score]) > threshold_nms_iou) {
+                candidates.push_back(bbox_list[index_low_score]);
+                is_merged[index_low_score] = true;
+            }
+        }
+        bbox_nms_list.push_back(candidates[0]);
+    }
+}
+
+bool InferenceHelper::postprocess_yolov5(cv::Mat &output_image, std::vector<ai_detection_t>& detections_vector){
+    start_time = rc_nanos_monotonic_time();
+
+    // yolo has just one fat float output tensor
+    TfLiteTensor* output_locations    = interpreter->tensor(interpreter->outputs()[0]);
+    float* output_tensor  = TensorData<float>(output_locations, 0);
+
+    std::vector<BoundingBox> bbox_list;
+
+    for (const auto& scale : kGridScaleList) {
+        int32_t grid_w = model_width / scale;
+        int32_t grid_h = model_height / scale;
+        float scale_x = static_cast<float>(input_width);
+        float scale_y = static_cast<float>(input_height);
+        GetBoundingBox(output_tensor, scale_x, scale_y, grid_w, grid_h, bbox_list);
+        output_tensor += grid_w * grid_h * kGridChannel * kElementNumOfAnchor; 
+    }
+
+    /* NMS */
+    std::vector<BoundingBox> bbox_nms_list;
+    Nms(bbox_list, bbox_nms_list, threshold_nms_iou_, false);
+
+    static std::vector<std::string> labels;
+    static size_t label_count;
+
+    if (labels.empty()){
+        if (ReadLabelsFile(labels_location, &labels, &label_count) != kTfLiteOk){
+            fprintf(stderr, "ERROR: Unable to read labels file\n");
+            return false;
+        }
+    }
+
+    for (const auto& bbox : bbox_nms_list) {
+        cv::putText(output_image, labels[bbox.class_id], cv::Point(bbox.x, bbox.y), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0), 2);
+        cv::rectangle(output_image, cv::Rect(bbox.x, bbox.y, bbox.w, bbox.h), GetColorForId(bbox.class_id), 2);
+         // setup ai detection for this detection
+        ai_detection_t curr_detection;
+        curr_detection.magic_number = AI_DETECTION_MAGIC_NUMBER;
+        curr_detection.timestamp_ns = rc_nanos_monotonic_time();
+        curr_detection.class_id = bbox.class_id;
+        curr_detection.frame_id = num_frames_processed;
+
+        strcpy(curr_detection.class_name, labels[bbox.class_id].c_str());
+        strcpy(curr_detection.cam, cam_name.c_str());
+
+        curr_detection.class_confidence = bbox.class_conf;
+        curr_detection.detection_confidence = bbox.detection_conf; // UNKNOWN for ssd model architecture
+        curr_detection.x_min = bbox.x;
+        curr_detection.y_min = bbox.y;
+        curr_detection.x_max = bbox.x + bbox.w;
+        curr_detection.y_max = bbox.y + bbox.h;
+
+        // fill the vector
+        detections_vector.push_back(curr_detection);
+    }
+
+    if (en_timing) total_postprocess_time += ((rc_nanos_monotonic_time() - start_time)/1000000.);
 
     return true;
 }

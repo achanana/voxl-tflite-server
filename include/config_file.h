@@ -117,7 +117,7 @@ static inline int config_file_read(void) {
     if (parent == NULL) return -1;
 
     // actually parse values
-    json_fetch_int_with_default(parent, "skip_n_frames", &skip_n_frames, 5);
+    json_fetch_int_with_default(parent, "skip_n_frames", &skip_n_frames, 0);
     json_fetch_string_with_default(parent, "model", model, CHAR_BUF_SIZE, "/usr/bin/dnn/ssdlite_mobilenet_v2_coco.tflite");
     json_fetch_string_with_default(parent, "input_pipe", input_pipe, CHAR_BUF_SIZE, "/run/mpa/hires/");
     json_fetch_string_with_default(parent, "delegate", delegate, CHAR_BUF_SIZE, "gpu");

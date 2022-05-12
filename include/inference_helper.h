@@ -41,11 +41,13 @@ struct TFLiteCamQueue {
 // delegate enum, for code readability
 enum DelegateOpt { XNNPACK, GPU, NNAPI };
 
+enum NormalizationType { NONE, PIXEL_MEAN, HARD_DIVISION };
+
 class InferenceHelper
 {
     public:
         // Constructor
-        InferenceHelper(char* model_file, char* labels_file, DelegateOpt delegate_choice, bool _en_debug, bool _en_timing, bool _do_normalize);
+        InferenceHelper(char* model_file, char* labels_file, DelegateOpt delegate_choice, bool _en_debug, bool _en_timing, NormalizationType _do_normalize);
         // Destructor
         ~InferenceHelper();
 
@@ -59,8 +61,9 @@ class InferenceHelper
         bool postprocess_object_detect(cv::Mat &output_image, std::vector<ai_detection_t>& detections_vector);
         bool postprocess_mono_depth(camera_image_metadata_t &meta, cv::Mat &output_image);
         bool postprocess_segmentation(camera_image_metadata_t &meta, cv::Mat &output_image);
-        bool postprocess_classification(camera_image_metadata_t &meta, cv::Mat &output_image);
-        bool postprocess_posenet(camera_image_metadata_t &meta, cv::Mat &output_image);
+        bool postprocess_classification(cv::Mat &output_image);
+        bool postprocess_posenet(cv::Mat &output_image);
+        bool postprocess_yolov5(cv::Mat &output_image, std::vector<ai_detection_t>& detections_vector);
 
         // summary timing stats
         void print_summary_stats();
@@ -98,7 +101,7 @@ class InferenceHelper
 
         bool en_debug;
         bool en_timing;
-        bool do_normalize;
+        NormalizationType do_normalize;
 
         // timing variables
         float total_preprocess_time = 0;
