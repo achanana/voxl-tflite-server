@@ -344,7 +344,7 @@ bool InferenceHelper::preprocess_image(camera_image_metadata_t &meta, char* fram
 #define NORMALIZATION_CONST 255.0f
 #define PIXEL_MEAN_GUESS 127.0f
 
-bool InferenceHelper::run_inference(cv::Mat preprocessed_image){
+bool InferenceHelper::run_inference(cv::Mat preprocessed_image, double* last_inference_time){
     start_time = rc_nanos_monotonic_time();
 
     // Get input dimension from the input tensor metadata assuming one input only
@@ -406,14 +406,17 @@ bool InferenceHelper::run_inference(cv::Mat preprocessed_image){
         return false;
     }
 
-    if (en_timing) total_inference_time += ((rc_nanos_monotonic_time() - start_time)/1000000.);
+    int64_t end_time = rc_nanos_monotonic_time();
+
+    if (en_timing) total_inference_time += ((end_time - start_time)/1000000.);
+    if (last_inference_time != nullptr) *last_inference_time = ((double)(end_time - start_time)/1000000.);
 
     return true;
 }
 
 // gets some nice randomly generated colors for ids
 // when grayscale, will be shades of gray
-static cv::Scalar GetColorForId(int32_t id)
+static cv::Scalar get_color_from_id(int32_t id)
 {
     static constexpr int32_t kMaxNum = 100;
     static std::vector<cv::Scalar> color_list;
@@ -426,7 +429,33 @@ static cv::Scalar GetColorForId(int32_t id)
     return color_list[id % kMaxNum];
 }
 
-bool InferenceHelper::postprocess_object_detect(cv::Mat& output_image, std::vector<ai_detection_t>& detections_vector){
+static void draw_text(cv::Mat& mat, const std::string& text, cv::Point pos, double font_scale, int32_t thickness, cv::Scalar color_front, cv::Scalar color_back, bool is_text_on_rect)
+{
+    int32_t baseline = 0;
+    cv::Size textSize = cv::getTextSize(text, cv::FONT_HERSHEY_SIMPLEX, font_scale, thickness, &baseline);
+    baseline += thickness;
+    pos.y += textSize.height;
+    if (is_text_on_rect) {
+        cv::rectangle(mat, pos + cv::Point(0, baseline), pos + cv::Point(textSize.width, -textSize.height), color_back, -1);
+        cv::putText(mat, text, pos, cv::FONT_HERSHEY_SIMPLEX, font_scale, color_front, thickness);
+    } else {
+        cv::putText(mat, text, pos, cv::FONT_HERSHEY_SIMPLEX, font_scale, color_back, thickness * 3);
+        cv::putText(mat, text, pos, cv::FONT_HERSHEY_SIMPLEX, font_scale, color_front, thickness);
+    }
+}
+
+static void draw_fps(cv::Mat& mat, double time_inference, cv::Point pos, double font_scale, int32_t thickness, cv::Scalar color_front, cv::Scalar color_back, bool is_text_on_rect = true)
+{
+    char text[64];
+    static auto time_previous = std::chrono::steady_clock::now();
+    auto time_now = std::chrono::steady_clock::now();
+    double fps = 1e9 / (time_now - time_previous).count();
+    time_previous = time_now;
+    snprintf(text, sizeof(text), "FPS: %.1f, Inference: %.1f [ms]", fps, time_inference);
+    draw_text(mat, text, cv::Point(0, 0), 0.5, 2, color_front, color_back, true);
+}
+
+bool InferenceHelper::postprocess_object_detect(cv::Mat& output_image, std::vector<ai_detection_t>& detections_vector, double last_inference_time){
     start_time = rc_nanos_monotonic_time();
     
     static std::vector<std::string> labels;
@@ -468,7 +497,7 @@ bool InferenceHelper::postprocess_object_detect(cv::Mat& output_image, std::vect
             cv::Rect rect(left, top, width, height);
             cv::Point pt(left, top-10);
 
-            cv::rectangle(output_image, rect, GetColorForId(detected_classes[i]), 2);
+            cv::rectangle(output_image, rect, get_color_from_id(detected_classes[i]), 2);
             cv::putText(output_image, labels[detected_classes[i]], pt, cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0), 2);
 
             // setup ai detection for this detection
@@ -494,12 +523,15 @@ bool InferenceHelper::postprocess_object_detect(cv::Mat& output_image, std::vect
             detections_vector.push_back(curr_detection);
         }
     }
+
+    draw_fps(output_image, last_inference_time, cv::Point(0, 0), 0.5, 2, cv::Scalar(0, 0, 0), cv::Scalar(180, 180, 180), true);
+    
     if (en_timing) total_postprocess_time += ((rc_nanos_monotonic_time() - start_time)/1000000.);
 
     return true;
 }
 
-bool InferenceHelper::postprocess_mono_depth(camera_image_metadata_t &meta, cv::Mat &output_image){
+bool InferenceHelper::postprocess_mono_depth(camera_image_metadata_t &meta, cv::Mat &output_image, double last_inference_time){
     start_time = rc_nanos_monotonic_time();
 
     TfLiteTensor* output_locations    = interpreter->tensor(interpreter->outputs()[0]);
@@ -524,6 +556,8 @@ bool InferenceHelper::postprocess_mono_depth(camera_image_metadata_t &meta, cv::
     cv::applyColorMap(depthmap_visual, output_image, 4); // opencv COLORMAP_JET
 
     if (en_timing) total_postprocess_time += ((rc_nanos_monotonic_time() - start_time)/1000000.);
+
+    draw_fps(output_image, last_inference_time, cv::Point(0, 0), 0.5, 2, cv::Scalar(0, 0, 0), cv::Scalar(180, 180, 180), true);
 
     return true;
 }
@@ -553,7 +587,7 @@ constexpr uint8_t color_map[57] = {
 
 #define RIGHT_PIXEL_BORDER 110
 
-bool InferenceHelper::postprocess_segmentation(camera_image_metadata_t &meta, cv::Mat &output_image){
+bool InferenceHelper::postprocess_segmentation(camera_image_metadata_t &meta, cv::Mat &output_image, double last_inference_time){
     start_time = rc_nanos_monotonic_time();
 
     static std::vector<std::string> labels;
@@ -596,12 +630,14 @@ bool InferenceHelper::postprocess_segmentation(camera_image_metadata_t &meta, cv
 
     output_image = temp;
 
+    draw_fps(output_image, last_inference_time, cv::Point(0, 0), 0.5, 2, cv::Scalar(0, 0, 0), cv::Scalar(180, 180, 180), true);
+
     if (en_timing) total_postprocess_time += ((rc_nanos_monotonic_time() - start_time)/1000000.);
 
     return true;
 }
 
-bool InferenceHelper::postprocess_classification(cv::Mat &output_image){
+bool InferenceHelper::postprocess_classification(cv::Mat &output_image, double last_inference_time){
     start_time = rc_nanos_monotonic_time();
 
     static std::vector<std::string> labels;
@@ -625,6 +661,8 @@ bool InferenceHelper::postprocess_classification(cv::Mat &output_image){
 
     fprintf(stderr, "class: %s, prob: %d\n", labels[best_class].c_str(), best_prob);
     cv::putText(output_image, labels[best_class], cv::Point(input_width/3, 25), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0, 255, 0), 1);
+
+    draw_fps(output_image, last_inference_time, cv::Point(0, 0), 0.5, 2, cv::Scalar(0, 0, 0), cv::Scalar(180, 180, 180), true);
 
     if (en_timing) total_postprocess_time += ((rc_nanos_monotonic_time() - start_time)/1000000.);
 
@@ -654,7 +692,7 @@ static const std::vector<std::pair<int32_t, int32_t>> kJointLineList {
     {13, 15},
 };
 
-bool InferenceHelper::postprocess_posenet(cv::Mat &output_image){
+bool InferenceHelper::postprocess_posenet(cv::Mat &output_image, double last_inference_time){
     start_time = rc_nanos_monotonic_time();
 
     static float confidence_threshold = 0.2;
@@ -688,6 +726,8 @@ bool InferenceHelper::postprocess_posenet(cv::Mat &output_image){
         }
     }
 
+    draw_fps(output_image, last_inference_time, cv::Point(0, 0), 0.5, 2, cv::Scalar(0, 0, 0), cv::Scalar(180, 180, 180), true);
+
     return true;
 }
 
@@ -700,8 +740,7 @@ static constexpr float threshold_box_confidence_   = 0.40;    // not sure if thi
 static constexpr float threshold_class_confidence_ = 0.20;    // not sure if this is too low or high yet
 static constexpr float threshold_nms_iou_ = 0.50;    // not sure if this is too low or high yet
 
-
-typedef struct BoundingBox{
+typedef struct b_box{
     int32_t class_id;
     std::string label;
     float class_conf;
@@ -711,9 +750,9 @@ typedef struct BoundingBox{
     int32_t y;
     int32_t w;
     int32_t h;
-} BoundingBox;
+} b_box;
 
-static void GetBoundingBox(const float* data, float scale_x, float  scale_y, int32_t grid_w, int32_t grid_h, std::vector<BoundingBox>& bbox_list)
+static void get_bbox(const float* data, float scale_x, float  scale_y, int32_t grid_w, int32_t grid_h, std::vector<b_box>& bbox_list)
 {
     int actual_loops = 0;
     int n_skipped = 0;
@@ -743,7 +782,7 @@ static void GetBoundingBox(const float* data, float scale_x, float  scale_y, int
                         int32_t h = static_cast<int32_t>(data[index + 3] * scale_y);            // no need to exp
                         int32_t x = cx - w / 2;
                         int32_t y = cy - h / 2;
-                        BoundingBox bbox = {class_id, "", confidence_of_class, box_confidence, confidence, x, y, w, h};
+                        b_box bbox = {class_id, "", confidence_of_class, box_confidence, confidence, x, y, w, h};
                         bbox_list.push_back(bbox);
                     }
                 }
@@ -754,7 +793,7 @@ static void GetBoundingBox(const float* data, float scale_x, float  scale_y, int
     }
 }
 
-static float CalculateIoU(const BoundingBox& obj0, const BoundingBox& obj1)
+static float calc_iou(const b_box& obj0, const b_box& obj1)
 {
     int32_t interx0 = (std::max)(obj0.x, obj1.x);
     int32_t intery0 = (std::max)(obj0.y, obj1.y);
@@ -770,9 +809,9 @@ static float CalculateIoU(const BoundingBox& obj0, const BoundingBox& obj1)
     return static_cast<float>(areaInter) / areaSum;
 }
 
-static void Nms(std::vector<BoundingBox>& bbox_list, std::vector<BoundingBox>& bbox_nms_list, float threshold_nms_iou, bool check_class_id)
+static void nms(std::vector<b_box>& bbox_list, std::vector<b_box>& bbox_nms_list, float threshold_nms_iou, bool check_class_id)
 {
-    std::sort(bbox_list.begin(), bbox_list.end(), [](BoundingBox const& lhs, BoundingBox const& rhs) {
+    std::sort(bbox_list.begin(), bbox_list.end(), [](b_box const& lhs, b_box const& rhs) {
         if (lhs.score > rhs.score) return true;
         return false;
         });
@@ -780,13 +819,13 @@ static void Nms(std::vector<BoundingBox>& bbox_list, std::vector<BoundingBox>& b
     std::unique_ptr<bool[]> is_merged(new bool[bbox_list.size()]);
     for (size_t i = 0; i < bbox_list.size(); i++) is_merged[i] = false;
     for (size_t index_high_score = 0; index_high_score < bbox_list.size(); index_high_score++) {
-        std::vector<BoundingBox> candidates;
+        std::vector<b_box> candidates;
         if (is_merged[index_high_score]) continue;
         candidates.push_back(bbox_list[index_high_score]);
         for (size_t index_low_score = index_high_score + 1; index_low_score < bbox_list.size(); index_low_score++) {
             if (is_merged[index_low_score]) continue;
             if (check_class_id && bbox_list[index_high_score].class_id != bbox_list[index_low_score].class_id) continue;
-            if (CalculateIoU(bbox_list[index_high_score], bbox_list[index_low_score]) > threshold_nms_iou) {
+            if (calc_iou(bbox_list[index_high_score], bbox_list[index_low_score]) > threshold_nms_iou) {
                 candidates.push_back(bbox_list[index_low_score]);
                 is_merged[index_low_score] = true;
             }
@@ -795,27 +834,26 @@ static void Nms(std::vector<BoundingBox>& bbox_list, std::vector<BoundingBox>& b
     }
 }
 
-bool InferenceHelper::postprocess_yolov5(cv::Mat &output_image, std::vector<ai_detection_t>& detections_vector){
+bool InferenceHelper::postprocess_yolov5(cv::Mat &output_image, std::vector<ai_detection_t>& detections_vector, double last_inference_time){
     start_time = rc_nanos_monotonic_time();
 
     // yolo has just one fat float output tensor
     TfLiteTensor* output_locations    = interpreter->tensor(interpreter->outputs()[0]);
     float* output_tensor  = TensorData<float>(output_locations, 0);
 
-    std::vector<BoundingBox> bbox_list;
+    std::vector<b_box> bbox_list;
 
     for (const auto& scale : kGridScaleList) {
         int32_t grid_w = model_width / scale;
         int32_t grid_h = model_height / scale;
         float scale_x = static_cast<float>(input_width);
         float scale_y = static_cast<float>(input_height);
-        GetBoundingBox(output_tensor, scale_x, scale_y, grid_w, grid_h, bbox_list);
+        get_bbox(output_tensor, scale_x, scale_y, grid_w, grid_h, bbox_list);
         output_tensor += grid_w * grid_h * kGridChannel * kElementNumOfAnchor; 
     }
 
-    /* NMS */
-    std::vector<BoundingBox> bbox_nms_list;
-    Nms(bbox_list, bbox_nms_list, threshold_nms_iou_, false);
+    std::vector<b_box> bbox_nms_list;
+    nms(bbox_list, bbox_nms_list, threshold_nms_iou_, false);
 
     static std::vector<std::string> labels;
     static size_t label_count;
@@ -829,7 +867,7 @@ bool InferenceHelper::postprocess_yolov5(cv::Mat &output_image, std::vector<ai_d
 
     for (const auto& bbox : bbox_nms_list) {
         cv::putText(output_image, labels[bbox.class_id], cv::Point(bbox.x, bbox.y), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0), 2);
-        cv::rectangle(output_image, cv::Rect(bbox.x, bbox.y, bbox.w, bbox.h), GetColorForId(bbox.class_id), 2);
+        cv::rectangle(output_image, cv::Rect(bbox.x, bbox.y, bbox.w, bbox.h), get_color_from_id(bbox.class_id), 2);
          // setup ai detection for this detection
         ai_detection_t curr_detection;
         curr_detection.magic_number = AI_DETECTION_MAGIC_NUMBER;
@@ -841,7 +879,7 @@ bool InferenceHelper::postprocess_yolov5(cv::Mat &output_image, std::vector<ai_d
         strcpy(curr_detection.cam, cam_name.c_str());
 
         curr_detection.class_confidence = bbox.class_conf;
-        curr_detection.detection_confidence = bbox.detection_conf; // UNKNOWN for ssd model architecture
+        curr_detection.detection_confidence = bbox.detection_conf;
         curr_detection.x_min = bbox.x;
         curr_detection.y_min = bbox.y;
         curr_detection.x_max = bbox.x + bbox.w;
@@ -850,6 +888,8 @@ bool InferenceHelper::postprocess_yolov5(cv::Mat &output_image, std::vector<ai_d
         // fill the vector
         detections_vector.push_back(curr_detection);
     }
+
+    draw_fps(output_image, last_inference_time, cv::Point(0, 0), 0.5, 2, cv::Scalar(0, 0, 0), cv::Scalar(180, 180, 180), true);
 
     if (en_timing) total_postprocess_time += ((rc_nanos_monotonic_time() - start_time)/1000000.);
 

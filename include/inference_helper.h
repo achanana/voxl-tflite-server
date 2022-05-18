@@ -55,15 +55,15 @@ class InferenceHelper
         bool preprocess_image(camera_image_metadata_t &meta, char* frame, cv::Mat &preprocessed_image, cv::Mat &output_image);
 
         // generic run_inference, requires input from preprocess_image() above
-        bool run_inference(cv::Mat preprocessed_image);
+        bool run_inference(cv::Mat preprocessed_image, double* last_inference_time);
 
         // post-processing funcs, specific to model type (output tensor format)
-        bool postprocess_object_detect(cv::Mat &output_image, std::vector<ai_detection_t>& detections_vector);
-        bool postprocess_mono_depth(camera_image_metadata_t &meta, cv::Mat &output_image);
-        bool postprocess_segmentation(camera_image_metadata_t &meta, cv::Mat &output_image);
-        bool postprocess_classification(cv::Mat &output_image);
-        bool postprocess_posenet(cv::Mat &output_image);
-        bool postprocess_yolov5(cv::Mat &output_image, std::vector<ai_detection_t>& detections_vector);
+        bool postprocess_object_detect(cv::Mat &output_image, std::vector<ai_detection_t>& detections_vector, double last_inference_time);
+        bool postprocess_mono_depth(camera_image_metadata_t &meta, cv::Mat &output_image, double last_inference_time);
+        bool postprocess_segmentation(camera_image_metadata_t &meta, cv::Mat &output_image, double last_inference_time);
+        bool postprocess_classification(cv::Mat &output_image, double last_inference_time);
+        bool postprocess_posenet(cv::Mat &output_image, double last_inference_time);
+        bool postprocess_yolov5(cv::Mat &output_image, std::vector<ai_detection_t>& detections_vector, double last_inference_time);
 
         // summary timing stats
         void print_summary_stats();

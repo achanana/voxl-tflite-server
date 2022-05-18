@@ -4,6 +4,7 @@
     * added colored bboxes for mobilenet + yolo
     * updated skip_n_frames default to 0
     * added new normalizationtype enum, since mobilenet doesn't play nicely with a hard / 255.0
+    * fps + inference timer added to tp left of images (NO running avgs, frame by frame update)
 0.2.4
     * voxl-configure-tflite for qrb5165 cleaned up, added posenet and stereo options
     * cmake fallthrough warning cleared

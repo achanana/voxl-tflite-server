@@ -164,12 +164,13 @@ static void* inference_worker(void* data)
         if (!inf_helper->preprocess_image(new_frame->metadata, (char*)new_frame->image_pixels, preprocessed_image, output_image)) continue;
         int new_format = new_frame->metadata.format;
 
-        if (!inf_helper->run_inference(preprocessed_image)) continue;
+        double last_inference_time = 0;
+        if (!inf_helper->run_inference(preprocessed_image, &last_inference_time)) continue;
 
         new_frame->metadata.format = new_format;
         if (post_type == OBJECT_DETECT){
             std::vector<ai_detection_t> detections;
-            if (!inf_helper->postprocess_object_detect(output_image, detections)) continue;
+            if (!inf_helper->postprocess_object_detect(output_image, detections, last_inference_time)) continue;
 
             if (!detections.empty()){
                 for (unsigned int i = 0; i < detections.size(); i++){
@@ -180,28 +181,28 @@ static void* inference_worker(void* data)
             pipe_server_write_camera_frame(IMAGE_CH, new_frame->metadata, (char*)output_image.data);
         }
         else if (post_type == MONO_DEPTH){
-            if (!inf_helper->postprocess_mono_depth(new_frame->metadata, output_image)) continue;
+            if (!inf_helper->postprocess_mono_depth(new_frame->metadata, output_image, last_inference_time)) continue;
             new_frame->metadata.timestamp_ns = rc_nanos_monotonic_time();
             pipe_server_write_camera_frame(IMAGE_CH, new_frame->metadata, (char*)output_image.data);
         }
         else if (post_type == SEGMENTATION){
-            if (!inf_helper->postprocess_segmentation(new_frame->metadata, output_image)) continue;
+            if (!inf_helper->postprocess_segmentation(new_frame->metadata, output_image, last_inference_time)) continue;
             new_frame->metadata.timestamp_ns = rc_nanos_monotonic_time();
             pipe_server_write_camera_frame(IMAGE_CH, new_frame->metadata, (char*)output_image.data);
         }
         else if (post_type == CLASSIFICATION){
-            if (!inf_helper->postprocess_classification(output_image)) continue;
+            if (!inf_helper->postprocess_classification(output_image, last_inference_time)) continue;
             new_frame->metadata.timestamp_ns = rc_nanos_monotonic_time();
             pipe_server_write_camera_frame(IMAGE_CH, new_frame->metadata, (char*)output_image.data);
         }
         else if (post_type == POSENET){
-            if (!inf_helper->postprocess_posenet(output_image)) continue;
+            if (!inf_helper->postprocess_posenet(output_image, last_inference_time)) continue;
             new_frame->metadata.timestamp_ns = rc_nanos_monotonic_time();
             pipe_server_write_camera_frame(IMAGE_CH, new_frame->metadata, (char*)output_image.data);
         }
         else if (post_type == YOLO){
             std::vector<ai_detection_t> detections;
-            if (!inf_helper->postprocess_yolov5(output_image, detections)) continue;
+            if (!inf_helper->postprocess_yolov5(output_image, detections, last_inference_time)) continue;
             if (!detections.empty()){
                 for (unsigned int i = 0; i < detections.size(); i++){
                     pipe_server_write(DETECTION_CH, (char*)&detections[i], sizeof(ai_detection_t));
