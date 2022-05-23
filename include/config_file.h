@@ -122,7 +122,7 @@ static inline int config_file_read(void) {
     json_fetch_string_with_default(parent, "input_pipe", input_pipe, CHAR_BUF_SIZE, "/run/mpa/hires/");
     json_fetch_string_with_default(parent, "delegate", delegate, CHAR_BUF_SIZE, "gpu");
 
-    #ifndef BUILD_QRB5165
+    #ifdef BUILD_QRB5165
     json_fetch_bool_with_default(parent, "allow_multiple", (int*)&allow_multiple, 0);
     json_fetch_string_with_default(parent, "output_pipe_prefix", output_pipe_prefix, CHAR_BUF_SIZE, "mobilenet");
     #endif
