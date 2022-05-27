@@ -186,9 +186,12 @@ static void* inference_worker(void* data)
             pipe_server_write_camera_frame(IMAGE_CH, new_frame->metadata, (char*)output_image.data);
         }
         else if (post_type == SEGMENTATION){
-            if (!inf_helper->postprocess_segmentation(new_frame->metadata, output_image, last_inference_time)) continue;
+            // Segmentation is a special case here
+            // instead of passing the full dimension "output_image", we pass the preprocessed_image back
+            // then, the model output and overlay image are the same dims so we can easily blend the two
+            if (!inf_helper->postprocess_segmentation(new_frame->metadata, preprocessed_image, last_inference_time)) continue;
             new_frame->metadata.timestamp_ns = rc_nanos_monotonic_time();
-            pipe_server_write_camera_frame(IMAGE_CH, new_frame->metadata, (char*)output_image.data);
+            pipe_server_write_camera_frame(IMAGE_CH, new_frame->metadata, (char*)preprocessed_image.data);
         }
         else if (post_type == CLASSIFICATION){
             if (!inf_helper->postprocess_classification(output_image, last_inference_time)) continue;

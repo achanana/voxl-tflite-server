@@ -615,10 +615,13 @@ bool InferenceHelper::postprocess_segmentation(camera_image_metadata_t &meta, cv
         }
     }
 
-    cv::copyMakeBorder(temp, temp, 0, 0, 0, RIGHT_PIXEL_BORDER, cv::BORDER_CONSTANT);
+    // now blend the model input and output
+    cv::addWeighted(output_image, 0.75, temp, 0.25, 0, output_image);
+    // add key overlay
+    cv::copyMakeBorder(output_image, output_image, 0, 0, 0, RIGHT_PIXEL_BORDER, cv::BORDER_CONSTANT);
 
     for (unsigned int i = 0; i < labels.size(); i++){
-        cv::putText(temp, labels[i], cv::Point(325, 16 * (i+1)), cv::FONT_HERSHEY_SIMPLEX, 0.4, cv::Scalar(color_map[(i*3)],color_map[(i*3)+1],color_map[(i*3)+2]), 1);
+        cv::putText(output_image, labels[i], cv::Point(325, 16 * (i+1)), cv::FONT_HERSHEY_SIMPLEX, 0.4, cv::Scalar(color_map[(i*3)],color_map[(i*3)+1],color_map[(i*3)+2]), 1);
     }
     
     // now, setup metadata since we modified the output image
@@ -628,9 +631,7 @@ bool InferenceHelper::postprocess_segmentation(camera_image_metadata_t &meta, cv
     meta.stride = meta.width * 3;
     meta.size_bytes = meta.height * meta.width * 3; 
 
-    output_image = temp;
-
-    draw_fps(output_image, last_inference_time, cv::Point(0, 0), 0.5, 2, cv::Scalar(0, 0, 0), cv::Scalar(180, 180, 180), true);
+    draw_fps(output_image, last_inference_time, cv::Point(0, 0), 0.25, 0.4, cv::Scalar(0, 0, 0), cv::Scalar(180, 180, 180), true);
 
     if (en_timing) total_postprocess_time += ((rc_nanos_monotonic_time() - start_time)/1000000.);
 
