@@ -47,10 +47,9 @@
  * skip_n_frames       - how many frames to skip between processed frames. For 30Hz\n\
  *                         input frame rate, we recommend skipping 5 frame resulting\n\
  *                         in 5hz model output. For 30Hz/maximum output, set to 0.\n\
- * model               - which model to use. Currently support mobilenet for\n\
- *                         object detection, fastdepth for monocular depth, or \n\
- *                         deeplab for semantic segmentation.\n\
- * input_pipe          - which camera to use (tracking or hires).\n\
+ * model               - which model to use. Currently support mobilenet, fastdepth,\n\
+ *                         posenet, deeplab, and yolov5.\n\
+ * input_pipe          - which camera to use (tracking, hires, or stereo).\n\
  * delegate            - optional hardware acceleration: gpu, cpu, or nnapi. If\n\
  *                         the selection is invalid for the current model/hardware, \n\
  *                         will silently fall back to base cpu delegate.\n\
@@ -73,7 +72,7 @@
  *                        in 5hz model output. For 30Hz/maximum output, set to 0.\n\
  * model              - which model to use. Currently only support mobilenet\n\
  *                        for object detection.\n\
- * input_pipe         - which camera to use (tracking or hires).\n\
+ * input_pipe         - which camera to use (tracking, hires, or stereo).\n\
  * delegate           - optional hardware acceleration: gpu or cpu. If\n\
  *                        the selection is invalid for the current model/hardware, \n\
  *                        will silently fall back to base cpu delegate.\n\
