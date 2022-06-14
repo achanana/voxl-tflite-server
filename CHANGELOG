@@ -1,3 +1,7 @@
+0.2.6
+    * yolov5 now sending ai_detection_t packets
+    * added support for nnapi quantized mobilenet variants
+    * added cpu affinity set for qrb5165
 0.2.5
     * yolov5 support added
     * cleaned up postprocessing funcs extra args

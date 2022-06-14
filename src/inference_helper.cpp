@@ -290,6 +290,8 @@ bool InferenceHelper::preprocess_image(camera_image_metadata_t &meta, char* fram
     }
     // if color input provided, make sure that is reflected in output image
     switch (meta.format){
+        case IMAGE_FORMAT_STEREO_NV12:
+            meta.format = IMAGE_FORMAT_NV12;
         case IMAGE_FORMAT_NV12:{
             cv::Mat yuv(input_height+input_height/2, input_width, CV_8UC1, (uchar*)frame);
             cv::cvtColor(yuv, output_image, CV_YUV2RGB_NV12);
@@ -302,7 +304,8 @@ bool InferenceHelper::preprocess_image(camera_image_metadata_t &meta, char* fram
             meta.stride         = (meta.width * 3);
         }
             break;
-
+        case IMAGE_FORMAT_STEREO_NV21:
+            meta.format = IMAGE_FORMAT_NV21;
         case IMAGE_FORMAT_NV21:{
             cv::Mat yuv(input_height+input_height/2, input_width, CV_8UC1, (uchar*)frame);
             cv::cvtColor(yuv, output_image, CV_YUV2RGB_NV21);
@@ -638,7 +641,9 @@ bool InferenceHelper::postprocess_segmentation(camera_image_metadata_t &meta, cv
     return true;
 }
 
-bool InferenceHelper::postprocess_classification(cv::Mat &output_image, double last_inference_time){
+#define CLASSIFICATION_CLASSES 1000
+
+bool InferenceHelper::postprocess_classification(cv::Mat &output_image, double last_inference_time, int tensor_offset){
     start_time = rc_nanos_monotonic_time();
 
     static std::vector<std::string> labels;
@@ -655,7 +660,7 @@ bool InferenceHelper::postprocess_classification(cv::Mat &output_image, double l
     uint8_t* confidence_tensor  = TensorData<uint8_t>(output_locations, 0);
 
     std::vector<uint8_t> confidences;
-    confidences.assign(confidence_tensor, confidence_tensor+1000);
+    confidences.assign(confidence_tensor+tensor_offset, confidence_tensor+CLASSIFICATION_CLASSES+tensor_offset);
  
     uint8_t best_prob = *std::max_element(confidences.begin(),confidences.end());
     int best_class = std::max_element(confidences.begin(),confidences.end()) - confidences.begin();

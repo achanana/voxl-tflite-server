@@ -68,6 +68,9 @@ InferenceHelper* inf_helper;
 enum PostProcessType { OBJECT_DETECT, MONO_DEPTH, SEGMENTATION, CLASSIFICATION, POSENET, YOLO };
 PostProcessType post_type;
 
+// offset for classification models only (as of now), used for addressing same tensor data with varied offsets
+// i.e. efficient net has 0 offset [0,1000], mobilenetv1 has +1 offset [1, 1001], etc...
+static int tensor_offset = 0;
 
 void _print_usage()
 {
@@ -145,6 +148,35 @@ static void* inference_worker(void* data)
     int nice  = -15;
     setpriority(which, tid, nice);
 
+     // if we can, chuck this thread onto the big cache cores
+    #ifdef BUILD_QRB5165
+
+    cpu_set_t cpuset;
+    pthread_t thread;
+    thread = pthread_self();
+
+    /* Set affinity mask to include CPUs 7 only */
+    CPU_ZERO(&cpuset);
+    CPU_SET(6, &cpuset);
+    CPU_SET(5, &cpuset);
+    CPU_SET(4, &cpuset);
+
+    if(pthread_setaffinity_np(thread, sizeof(cpu_set_t), &cpuset)){
+        perror("pthread_setaffinity_np");
+    }
+
+    /* Check the actual affinity mask assigned to the thread */
+    if(pthread_getaffinity_np(thread, sizeof(cpu_set_t), &cpuset)){
+        perror("pthread_getaffinity_np");
+    }
+    printf("Camera processing thread is now locked to the following cores:");
+    for (int j = 0; j < CPU_SETSIZE; j++){
+        if(CPU_ISSET(j, &cpuset)) printf(" %d", j);
+    }
+    printf("\n");
+
+    #endif
+
     // keep track of where we are in terms of processing the tflite camera queue
     int queue_index = 0;
 
@@ -194,7 +226,7 @@ static void* inference_worker(void* data)
             pipe_server_write_camera_frame(IMAGE_CH, new_frame->metadata, (char*)preprocessed_image.data);
         }
         else if (post_type == CLASSIFICATION){
-            if (!inf_helper->postprocess_classification(output_image, last_inference_time)) continue;
+            if (!inf_helper->postprocess_classification(output_image, last_inference_time, tensor_offset)) continue;
             new_frame->metadata.timestamp_ns = rc_nanos_monotonic_time();
             pipe_server_write_camera_frame(IMAGE_CH, new_frame->metadata, (char*)output_image.data);
         }
@@ -312,11 +344,15 @@ int main(int argc, char *argv[])
     else if (!strcmp(delegate, "nnapi")) opt_ = NNAPI;
 
     char* labels_in_use = coco_labels;
+
     // set postprocess type
     if (!strcmp(model, "/usr/bin/dnn/ssdlite_mobilenet_v2_coco.tflite")){
         post_type = OBJECT_DETECT;
         do_normalize = PIXEL_MEAN; // funky for mobilenet, doesn't like hard division
-    } 
+    }
+    else if (!strcmp(model, "/usr/bin/dnn/mobilenetv1_nnapi_quant.tflite")){
+        post_type = OBJECT_DETECT;
+    }
     else if (!strcmp(model, "/usr/bin/dnn/fastdepth_float16_quant.tflite")){
         post_type = MONO_DEPTH;
         do_normalize = HARD_DIVISION;
@@ -330,6 +366,13 @@ int main(int argc, char *argv[])
         post_type = CLASSIFICATION;
         do_normalize = PIXEL_MEAN;
         labels_in_use = imagenet_labels;
+    }
+    else if (!strcmp(model, "/usr/bin/dnn/mobilenetv1_nnapi_classifier.tflite")){
+        post_type = CLASSIFICATION;
+        do_normalize = PIXEL_MEAN;
+        labels_in_use = imagenet_labels;
+        // mobilenet special for background class!!!
+        tensor_offset = 1;
     }
     else if (!strcmp(model, "/usr/bin/dnn/lite-model_movenet_singlepose_lightning_tflite_float16_4.tflite")){
         post_type  = POSENET;
@@ -382,7 +425,7 @@ int main(int argc, char *argv[])
         // open our output pipes using default names
         pipe_info_t image_pipe = {"tflite", TFLITE_IMAGE_PATH, "camera_image_metadata_t", PROCESS_NAME, 16*1024*1024, 0};
         pipe_server_create(IMAGE_CH, image_pipe, 0);
-        if (post_type == OBJECT_DETECT){
+        if (post_type == OBJECT_DETECT || post_type == YOLO){
             pipe_info_t detection_pipe = {"tflite_data", TFLITE_DETECTION_PATH, "ai_detection_t", PROCESS_NAME, 16*1024, 0};
             pipe_server_create(DETECTION_CH, detection_pipe, 0);
         }
@@ -403,7 +446,7 @@ int main(int argc, char *argv[])
         // create the server pipe
         pipe_server_create(IMAGE_CH, image_pipe, 0);
 
-        if (post_type == OBJECT_DETECT){
+        if (post_type == OBJECT_DETECT || post_type == YOLO){
             // initialize the detection pipe only if we are running a detection model
             pipe_info_t detection_pipe = {"tflite_data", "unknown", "ai_detection_t", PROCESS_NAME, 16*1024, 0};
             output_pipe_holder = MODAL_PIPE_DEFAULT_BASE_DIR;

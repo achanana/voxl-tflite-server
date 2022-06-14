@@ -61,7 +61,7 @@ class InferenceHelper
         bool postprocess_object_detect(cv::Mat &output_image, std::vector<ai_detection_t>& detections_vector, double last_inference_time);
         bool postprocess_mono_depth(camera_image_metadata_t &meta, cv::Mat &output_image, double last_inference_time);
         bool postprocess_segmentation(camera_image_metadata_t &meta, cv::Mat &output_image, double last_inference_time);
-        bool postprocess_classification(cv::Mat &output_image, double last_inference_time);
+        bool postprocess_classification(cv::Mat &output_image, double last_inference_time, int tensor_offset);
         bool postprocess_posenet(cv::Mat &output_image, double last_inference_time);
         bool postprocess_yolov5(cv::Mat &output_image, std::vector<ai_detection_t>& detections_vector, double last_inference_time);
 
