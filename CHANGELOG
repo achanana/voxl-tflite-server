@@ -1,3 +1,5 @@
+0.2.7
+    * add support for running on the primary camera of a stereo pair
 0.2.6
     * yolov5 now sending ai_detection_t packets
     * added support for nnapi quantized mobilenet variants
