@@ -1,3 +1,6 @@
+0.3.0
+    * **almost** feature parity for apq8096, now running tflite v2.8.0 as well
+    * added all models for qrb5165 tp apq8096 package
 0.2.7
     * add support for running on the primary camera of a stereo pair (apq)
     * added optimization flags for compilation

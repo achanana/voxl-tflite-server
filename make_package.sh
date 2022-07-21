@@ -150,13 +150,7 @@ if [ -d "bash_completions" ]; then
 fi
 
 if [ -d "misc_files" ]; then
-	if [ $MAKE_DEB == false ]; then
-		sudo mkdir -p $DATA_DIR/usr/bin/dnn/
-		sudo cp misc_files/usr/bin/dnn/coco_labels.txt misc_files/usr/bin/dnn/ssdlite_mobilenet_v2_coco.tflite $DATA_DIR/usr/bin/dnn/
-	fi
-	if [ $MAKE_IPK == false ]; then
 		sudo cp -R misc_files/* $DATA_DIR/	
-	fi
 fi
 
 if [ -d "bash_profile" ]; then

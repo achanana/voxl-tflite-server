@@ -25,9 +25,9 @@ include_directories(
     ../include
     /usr/include/opencv4/
 
-    # apq8096 SPECIFIC
-    /usr/include/tensorflow/lite/tools/make/downloads/absl/
-    /usr/include/tensorflow/lite/tools/make/downloads/flatbuffers/include/
+    # # apq8096 SPECIFIC
+    # /usr/include/tensorflow/lite/tools/make/downloads/absl/
+    # /usr/include/tensorflow/lite/tools/make/downloads/flatbuffers/include/
 
     # qrb5165 SPECIFIC
     /usr/include/flatbuffers/include/
@@ -77,7 +77,6 @@ set(ABSL_LIBS
     "absl_wyhash"
 )
 
-if (BUILD_QRB5165)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-implicit-fallthrough")
 set(LINK_LIBS
     "tensorflow-lite"
@@ -85,8 +84,6 @@ set(LINK_LIBS
     ${ABSL_LIBS}
     ${ABSL_LIBS}
     "flatbuffers"
-    "XNNPACK"
-    "pthreadpool"
     "cpuinfo"
     "farmhash"
     "clog"
@@ -146,40 +143,11 @@ set(LINK_LIBS
     "GLESv2_adreno"
     "rt"
 )
-else()
-set(LINK_LIBS
-    "tensorflow-lite"
-    "benchmark-lib"
-    "absl_stacktrace"
-    "absl_synchronization"
-    "absl_symbolize"
-    "absl_debugging_internal"
-    "absl_demangle_internal"
-    "absl_dynamic_annotations"
-    "glib-2.0"
-    "dl"
-    "stdc++"
-    "pthread"
-    "z"
-    "cutils"
-    "log"
-    "sync"
-    "gthread-2.0"
-    "pcre"
-    "modal_pipe"
-    "modal_json"
-    "opencv_highgui"
-    "opencv_imgproc"
-    "opencv_core"
-    "opencv_imgcodecs"
-    "gsl"
-    "llvm-qcom"
-    "adreno_utils"
-    "OpenCL"
-    "CB"
-    "EGL_adreno"
-    "GLESv2_adreno"
-    "rt"
+
+if (BUILD_QRB5165)
+set(LINK_LIBS "${LINK_LIBS}"
+    "XNNPACK"
+    "pthreadpool"
 )
 endif()
 
