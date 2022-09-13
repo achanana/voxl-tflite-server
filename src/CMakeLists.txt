@@ -74,9 +74,19 @@ set(ABSL_LIBS
     "absl_throw_delegate"
     "absl_time"
     "absl_time_zone"
-    "absl_wyhash"
 )
 
+if (NOT BUILD_QRB5165)
+set(LINK_LIBS "${LINK_LIBS}"
+    "absl_wyhash"
+)
+endif()
+if (BUILD_QRB5165)
+set(LINK_LIBS "${LINK_LIBS}"
+    "XNNPACK"
+    "pthreadpool"
+)
+endif()
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-implicit-fallthrough")
 set(LINK_LIBS
     "tensorflow-lite"
@@ -143,13 +153,6 @@ set(LINK_LIBS
     "GLESv2_adreno"
     "rt"
 )
-
-if (BUILD_QRB5165)
-set(LINK_LIBS "${LINK_LIBS}"
-    "XNNPACK"
-    "pthreadpool"
-)
-endif()
 
 target_link_libraries(${TARGET}
     -Wl,-rpath-link,/usr/lib64/
