@@ -3,7 +3,7 @@ Version: 0.3.1
 Section: base
 Priority: optional
 Architecture: arm64
-Depends: libmodal-pipe,libmodal-json, voxl-opencv, qrb5165-tflite(>=2.10.0) | apq8096-tflite(>=2.8.3)
+Depends: libmodal-pipe,libmodal-json, voxl-opencv, qrb5165-tflite(>=2.8.0) | apq8096-tflite(>=2.8.0)
 Maintainer: modalai.com
 Description: client of voxl-camera-server that does deep learning
 Conflicts: voxl-mpa-tflite-server
