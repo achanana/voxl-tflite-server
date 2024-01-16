@@ -11,3 +11,5 @@ pkg/data
 .vscode
 demo_scripts
 .gitconfig
+.clang*
+compile_commands.json

@@ -400,7 +400,7 @@ int main(int argc, char *argv[])
 
     main_running = 1;
 
-    fprintf(stderr, "\n------VOXL TFLite Server------\n\n");
+    fprintf(stderr, "\n------VOXL TFLite Server IMAE EDITS------\n\n");
 
     // Start the thread that will run the tensorflow lite model on live camera frames.
     pthread_attr_t thread_attributes;

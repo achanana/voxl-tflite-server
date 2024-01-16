@@ -740,11 +740,12 @@ bool InferenceHelper::postprocess_posenet(cv::Mat &output_image, double last_inf
 // straight up stolen from https://github.com/iwatake2222/play_with_tflite/blob/master/pj_tflite_det_yolov5/image_processor/detection_engine.cpp
 static constexpr int32_t kGridScaleList[] = { 8, 16, 32 };
 static constexpr int32_t kGridChannel = 3;
-static constexpr int32_t kNumberOfClass = 80;
-static constexpr int32_t kElementNumOfAnchor = kNumberOfClass + 5;    // x, y, w, h, bbox confidence, [class confidence]
 static constexpr float threshold_box_confidence_   = 0.40;    // not sure if this is too low or high yet
 static constexpr float threshold_class_confidence_ = 0.20;    // not sure if this is too low or high yet
 static constexpr float threshold_nms_iou_ = 0.50;    // not sure if this is too low or high yet
+
+int32_t kNumberOfClass;
+int32_t kElementNumOfAnchor;
 
 typedef struct b_box{
     int32_t class_id;
@@ -758,11 +759,16 @@ typedef struct b_box{
     int32_t h;
 } b_box;
 
-static void get_bbox(const float* data, float scale_x, float  scale_y, int32_t grid_w, int32_t grid_h, std::vector<b_box>& bbox_list)
+static void get_bbox(const float* data, float scale_x, float  scale_y, int32_t grid_w, int32_t grid_h, int number_of_classes, std::vector<b_box>& bbox_list)
 {
     int actual_loops = 0;
     int n_skipped = 0;
     int32_t index = 0;
+
+    // assign these per call
+    kNumberOfClass = number_of_classes;
+    kElementNumOfAnchor = kNumberOfClass + 5;    // x, y, w, h, bbox confidence, [class confidence]
+    
     for (int32_t grid_y = 0; grid_y < grid_h; grid_y++) {
         for (int32_t grid_x = 0; grid_x < grid_w; grid_x++) {
             for (int32_t grid_c = 0; grid_c < kGridChannel; grid_c++) {
@@ -847,6 +853,15 @@ bool InferenceHelper::postprocess_yolov5(cv::Mat &output_image, std::vector<ai_d
     TfLiteTensor* output_locations    = interpreter->tensor(interpreter->outputs()[0]);
     float* output_tensor  = TensorData<float>(output_locations, 0);
 
+
+    static std::vector<std::string> labels;
+    static size_t label_count;
+    if (labels.empty()){
+        if (ReadLabelsFile(labels_location, &labels, &label_count) != kTfLiteOk){
+            fprintf(stderr, "ERROR: Unable to read labels file\n");
+            return false;
+        }
+    }
     std::vector<b_box> bbox_list;
 
     for (const auto& scale : kGridScaleList) {
@@ -854,22 +869,12 @@ bool InferenceHelper::postprocess_yolov5(cv::Mat &output_image, std::vector<ai_d
         int32_t grid_h = model_height / scale;
         float scale_x = static_cast<float>(input_width);
         float scale_y = static_cast<float>(input_height);
-        get_bbox(output_tensor, scale_x, scale_y, grid_w, grid_h, bbox_list);
+        get_bbox(output_tensor, scale_x, scale_y, grid_w, grid_h, label_count, bbox_list);
         output_tensor += grid_w * grid_h * kGridChannel * kElementNumOfAnchor; 
     }
 
     std::vector<b_box> bbox_nms_list;
     nms(bbox_list, bbox_nms_list, threshold_nms_iou_, false);
-
-    static std::vector<std::string> labels;
-    static size_t label_count;
-
-    if (labels.empty()){
-        if (ReadLabelsFile(labels_location, &labels, &label_count) != kTfLiteOk){
-            fprintf(stderr, "ERROR: Unable to read labels file\n");
-            return false;
-        }
-    }
 
     for (const auto& bbox : bbox_nms_list) {
         cv::putText(output_image, labels[bbox.class_id], cv::Point(bbox.x, bbox.y), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0), 2);
