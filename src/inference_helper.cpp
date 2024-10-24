@@ -299,7 +299,6 @@ bool InferenceHelper::preprocess_image(camera_image_metadata_t& meta,
             resize_output = (uint8_t*)malloc(model_height * model_width *
                                              sizeof(uint8_t) * 3);
         }
-        return false;
     }
     // if color input provided, make sure that is reflected in output image
     switch (meta.format) {

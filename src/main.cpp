@@ -199,10 +199,13 @@ static void* inference_worker(void* data) {
         queue_index              = ((queue_index + 1) % QUEUE_SIZE);
 
         cv::Mat preprocessed_image, output_image;
+        printf("Preprocessing image\n");
         if (!inf_helper->preprocess_image(new_frame->metadata,
                                           (char*)new_frame->image_pixels,
-                                          preprocessed_image, output_image))
+                                          preprocessed_image, output_image)) {
+            fprintf(stderr, "Preprocessing image failed, continuing\n");
             continue;
+        }
         int new_format = new_frame->metadata.format;
 
         double last_inference_time = 0;
@@ -218,11 +221,18 @@ static void* inference_worker(void* data) {
                 continue;
 
             if (!detections.empty()) {
+                printf("Obtained %ld detections\n", detections.size());
                 for (unsigned int i = 0; i < detections.size(); i++) {
                     pipe_server_write(DETECTION_CH, (char*)&detections[i],
                                       sizeof(ai_detection_t));
                 }
+            } else {
+                printf("No detections obtained\n");
             }
+            ai_detection_t dummy_detection;
+            dummy_detection.frame_id = -1;
+            pipe_server_write(DETECTION_CH, (char*)&dummy_detection,
+                              sizeof(ai_detection_t));
             new_frame->metadata.timestamp_ns = rc_nanos_monotonic_time();
             pipe_server_write_camera_frame(IMAGE_CH, new_frame->metadata,
                                            (char*)output_image.data);
@@ -265,11 +275,18 @@ static void* inference_worker(void* data) {
                                                 last_inference_time))
                 continue;
             if (!detections.empty()) {
+                printf("Obtained %ld yolo detections\n", detections.size());
                 for (unsigned int i = 0; i < detections.size(); i++) {
                     pipe_server_write(DETECTION_CH, (char*)&detections[i],
                                       sizeof(ai_detection_t));
                 }
+            } else {
+                printf("No yolo detections obtained\n");
             }
+            ai_detection_t dummy_detection;
+            dummy_detection.frame_id = -1;
+            pipe_server_write(DETECTION_CH, (char*)&dummy_detection,
+                              sizeof(ai_detection_t));
             new_frame->metadata.timestamp_ns = rc_nanos_monotonic_time();
             pipe_server_write_camera_frame(IMAGE_CH, new_frame->metadata,
                                            (char*)output_image.data);
